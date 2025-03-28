@@ -1,0 +1,55 @@
+const sequelize = require('../config/database');
+const Device = require('./Device');
+const Pricing = require('./Pricing');
+const User = require('./User');
+const Staff = require('./Staff');
+const RentalSession = require('./RentalSession');
+const FoodItem = require('./FoodItem');
+const FoodOrder = require('./FoodOrder');
+const OrderItem = require('./OrderItem');
+const Shift = require('./Shift');
+const Transaction = require('./Transaction');
+const Notification = require('./Notification');
+
+// Definisikan relasi antar model
+Device.hasMany(RentalSession, { foreignKey: 'device_id' });
+RentalSession.belongsTo(Device, { foreignKey: 'device_id' });
+
+User.hasMany(RentalSession, { foreignKey: 'user_id' });
+RentalSession.belongsTo(User, { foreignKey: 'user_id' });
+
+Staff.hasMany(RentalSession, { foreignKey: 'staff_id' });
+RentalSession.belongsTo(Staff, { foreignKey: 'staff_id' });
+
+Staff.hasMany(FoodOrder, { foreignKey: 'staff_id' });
+FoodOrder.belongsTo(Staff, { foreignKey: 'staff_id' });
+
+RentalSession.hasMany(FoodOrder, { foreignKey: 'session_id' });
+FoodOrder.belongsTo(RentalSession, { foreignKey: 'session_id' });
+
+FoodOrder.hasMany(OrderItem, { foreignKey: 'order_id' });
+OrderItem.belongsTo(FoodOrder, { foreignKey: 'order_id' });
+
+FoodItem.hasMany(OrderItem, { foreignKey: 'item_id' });
+OrderItem.belongsTo(FoodItem, { foreignKey: 'item_id' });
+
+Staff.hasMany(Shift, { foreignKey: 'staff_id' });
+Shift.belongsTo(Staff, { foreignKey: 'staff_id' });
+
+Shift.hasMany(Transaction, { foreignKey: 'shift_id' });
+Transaction.belongsTo(Shift, { foreignKey: 'shift_id' });
+
+module.exports = {
+  sequelize,
+  Device,
+  Pricing,
+  User,
+  Staff,
+  RentalSession,
+  FoodItem,
+  FoodOrder,
+  OrderItem,
+  Shift,
+  Transaction,
+  Notification
+};
