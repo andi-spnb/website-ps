@@ -13,23 +13,34 @@ import {
   FileText, 
   Clock, 
   User,
+  UserPlus,
   LogOut
 } from 'lucide-react';
 
 const Layout = () => {
-  const { currentUser, logout } = useAuth();
-  const { currentShift } = useShift();
+  // Tambahkan penanganan error jika useAuth() undefined
+  const auth = useAuth() || {};
+  const { currentUser, logout } = auth;
+  
+  // Tambahkan penanganan error jika useShift() undefined
+  const shift = useShift() || {};
+  const { currentShift } = shift;
+  
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout();
-    navigate('/login');
+    if (logout) {
+      logout();
+      navigate('/login');
+    }
   };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
+
+  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Owner';
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
@@ -56,8 +67,8 @@ const Layout = () => {
           <div className="mb-6">
             <div className="text-gray-400 text-sm mb-2">Staff Info</div>
             <div className="bg-gray-700 rounded-md p-3">
-              <div className="font-medium">{currentUser?.name}</div>
-              <div className="text-sm text-gray-400">{currentUser?.role}</div>
+              <div className="font-medium">{currentUser?.name || 'User'}</div>
+              <div className="text-sm text-gray-400">{currentUser?.role || 'Role'}</div>
               {currentShift ? (
                 <div className="mt-2 text-xs text-green-400 flex items-center">
                   <Clock size={12} className="mr-1" />
@@ -139,19 +150,34 @@ const Layout = () => {
                 <span>Makanan & Minuman</span>
               </NavLink>
               
-              {(currentUser?.role === 'Admin' || currentUser?.role === 'Owner') && (
-                <NavLink
-                  to="/reports"
-                  className={({ isActive }) =>
-                    `flex items-center px-3 py-2 rounded-md ${
-                      isActive ? "bg-blue-600" : "hover:bg-gray-700"
-                    }`
-                  }
-                  onClick={() => setSidebarOpen(false)}
-                >
-                  <FileText size={18} className="mr-3" />
-                  <span>Laporan</span>
-                </NavLink>
+              {isAdmin && (
+                <>
+                  <NavLink
+                    to="/reports"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 rounded-md ${
+                        isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                      }`
+                    }
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <FileText size={18} className="mr-3" />
+                    <span>Laporan</span>
+                  </NavLink>
+                  
+                  <NavLink
+                    to="/staff"
+                    className={({ isActive }) =>
+                      `flex items-center px-3 py-2 rounded-md ${
+                        isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                      }`
+                    }
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    <UserPlus size={18} className="mr-3" />
+                    <span>Karyawan</span>
+                  </NavLink>
+                </>
               )}
               
               <NavLink

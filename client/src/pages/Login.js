@@ -19,10 +19,25 @@ const Login = () => {
     }
     
     try {
+      console.log('Attempting login with:', { username }); // Debug info
       setIsLoading(true);
-      await login(username, password);
+      
+      const result = await login(username, password);
+      console.log('Login result:', result); // Debug info
+      
+      // Periksa token setelah login
+      const token = localStorage.getItem('token');
+      console.log('Token stored:', token ? 'Yes' : 'No'); // Debug info
+      
+      // Log user data
+      const userData = localStorage.getItem('currentUser');
+      console.log('User data stored:', userData); // Debug info
+      
+      // Redirect ke dashboard
+      console.log('Redirecting to dashboard...'); // Debug info
       navigate('/dashboard');
     } catch (error) {
+      console.error('Login error:', error); // Debug info
       toast.error(error.response?.data?.message || 'Login gagal');
     } finally {
       setIsLoading(false);

@@ -7,7 +7,9 @@ const ShiftContext = createContext();
 export const useShift = () => useContext(ShiftContext);
 
 export const ShiftProvider = ({ children }) => {
-  const { currentUser } = useAuth();
+  const auth = useAuth();
+  const currentUser = auth?.currentUser;
+
   const [currentShift, setCurrentShift] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

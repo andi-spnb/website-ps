@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kenzie Gaming - Login Sederhana</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1f2937;
+            color: white;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        .login-container {
+            background-color: #374151;
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            max-width: 400px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        .logo-circle {
+            display: inline-flex;
+            width: 60px;
+            height: 60px;
+            background-color: #3b82f6;
+            border-radius: 50%;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        h1 {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        p.subtitle {
+            text-align: center;
+            color: #9ca3af;
+            margin-bottom: 2rem;
+            font-size: 0.9rem;
+        }
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        label {
+            display: block;
+            color: #9ca3af;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+        input {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #4b5563;
+            border: 1px solid #6b7280;
+            border-radius: 5px;
+            color: white;
+            font-size: 1rem;
+            box-sizing: border-box;
+        }
+        input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        button {
+            width: 100%;
+            background-color: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 0.75rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #2563eb;
+        }
+        button:disabled {
+            background-color: #6b7280;
+            cursor: not-allowed;
+        }
+        .error-message {
+            color: #ef4444;
+            background-color: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            border-radius: 5px;
+            padding: 0.75rem;
+            margin-bottom: 1.5rem;
+            display: none;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            color: #6b7280;
+            font-size: 0.8rem;
+        }
+        .register-link {
+            display: block;
+            text-align: center;
+            margin-top: 1.5rem;
+            color: #3b82f6;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        .register-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="logo">
+            <div class="logo-circle">K</div>
+        </div>
+        <h1>Kenzie Gaming</h1>
+        <p class="subtitle">Sistem Rental PlayStation</p>
+        
+        <div id="error-message" class="error-message"></div>
+        
+        <form id="login-form">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input 
+                    type="text" 
+                    id="username" 
+                    name="username" 
+                    placeholder="Masukkan username" 
+                    required
+                />
+            </div>
+            
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input 
+                    type="password" 
+                    id="password" 
+                    name="password" 
+                    placeholder="Masukkan password" 
+                    required
+                />
+            </div>
+            
+            <button type="submit" id="login-button">Login</button>
+        </form>
+        
+        <a href="register-user.html" class="register-link">Buat akun baru</a>
+        
+        <div class="footer">
+            &copy; 2024 Kenzie Gaming. All rights reserved.
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('login-form');
+            const errorMessage = document.getElementById('error-message');
+            const loginButton = document.getElementById('login-button');
+            
+            // Initialize users array if it doesn't exist
+            if (!localStorage.getItem('kenzie_users')) {
+                // Add some default users
+                const defaultUsers = [
+                    { 
+                        id: 1, 
+                        name: 'Administrator', 
+                        username: 'admin', 
+                        password: 'admin123', 
+                        role: 'Admin',
+                        createdAt: new Date().toISOString()
+                    },
+                    { 
+                        id: 2, 
+                        name: 'Pemilik', 
+                        username: 'owner', 
+                        password: 'owner123', 
+                        role: 'Owner',
+                        createdAt: new Date().toISOString()
+                    },
+                    { 
+                        id: 3, 
+                        name: 'Kasir', 
+                        username: 'kasir', 
+                        password: 'kasir123', 
+                        role: 'Cashier',
+                        createdAt: new Date().toISOString()
+                    }
+                ];
+                
+                localStorage.setItem('kenzie_users', JSON.stringify(defaultUsers));
+            }
+            
+            loginForm.addEventListener('submit', function(event) {
+                event.preventDefault();
+                
+                const username = document.getElementById('username').value;
+                const password = document.getElementById('password').value;
+                
+                // Reset pesan error
+                errorMessage.style.display = 'none';
+                
+                // Simulasi loading
+                loginButton.textContent = 'Memproses...';
+                loginButton.disabled = true;
+                
+                // Simulasi penundaan jaringan
+                setTimeout(() => {
+                    // Get users from localStorage
+                    const users = JSON.parse(localStorage.getItem('kenzie_users') || '[]');
+                    
+                    // Find matching user
+                    const user = users.find(u => u.username === username && u.password === password);
+                    
+                    if (user) {
+                        // Login berhasil - Simpan info user di localStorage
+                        const userData = {
+                            staff_id: user.id,
+                            name: user.name,
+                            role: user.role,
+                            username: user.username
+                        };
+                        
+                        // Buat token palsu (dalam aplikasi nyata, ini seharusnya JWT dari server)
+                        const fakeToken = btoa(JSON.stringify(userData)) + '.fakeSignature';
+                        
+                        localStorage.setItem('token', fakeToken);
+                        localStorage.setItem('currentUser', JSON.stringify(userData));
+                        
+                        // Redirect ke halaman dashboard
+                        window.location.href = 'dashboard.html';
+                    } else {
+                        // Login gagal
+                        errorMessage.textContent = 'Username atau password salah';
+                        errorMessage.style.display = 'block';
+                        loginButton.textContent = 'Login';
+                        loginButton.disabled = false;
+                    }
+                }, 1000);
+            });
+        });
+    </script>
+</body>
+</html>

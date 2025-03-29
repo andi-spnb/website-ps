@@ -69,6 +69,26 @@ exports.register = async (req, res) => {
   try {
     const { name, role, username, password } = req.body;
     
+    // Validasi input
+    if (!name || !username || !password || !role) {
+      return res.status(400).json({ message: 'Semua field harus diisi' });
+    }
+    
+    if (password.length < 6) {
+      return res.status(400).json({ message: 'Password harus minimal 6 karakter' });
+    }
+    
+    // Validasi peran
+    const allowedRoles = ['Cashier', 'Admin', 'Owner'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ message: 'Peran tidak valid' });
+    }
+    
+    // Admin tidak boleh membuat akun Owner
+    if (req.userData.role !== 'Owner' && role === 'Owner') {
+      return res.status(403).json({ message: 'Anda tidak memiliki izin untuk membuat akun Owner' });
+    }
+    
     // Check if username already exists
     const existingStaff = await Staff.findOne({ where: { username } });
     if (existingStaff) {
@@ -111,6 +131,10 @@ exports.changePassword = async (req, res) => {
     const isPasswordValid = await staff.comparePassword(currentPassword);
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Password saat ini salah' });
+    }
+    
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: 'Password baru harus minimal 6 karakter' });
     }
 
     staff.password_hash = newPassword; // Will be hashed by model hook
