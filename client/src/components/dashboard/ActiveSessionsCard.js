@@ -1,28 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Clock } from 'lucide-react';
+import { Monitor, Clock, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const ActiveSessionsCard = () => {
   const [activeSessions, setActiveSessions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [timer, setTimer] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Fetch active sessions
-  useEffect(() => {
-    const fetchActiveSessions = async () => {
-      try {
-        const response = await api.get('/rentals/active');
-        setActiveSessions(response.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching active sessions:', err);
-        setError('Gagal memuat data sesi aktif');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchActiveSessions = async () => {
+    try {
+      setRefreshing(true);
+      const response = await api.get('/rentals/active');
+      setActiveSessions(response.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching active sessions:', err);
+      setError('Gagal memuat data sesi aktif. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchActiveSessions();
   }, []);
 
@@ -79,14 +83,6 @@ const ActiveSessionsCard = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700">
-        <div className="text-red-500">{error}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700">
       <div className="flex justify-between items-center mb-4">
@@ -94,14 +90,37 @@ const ActiveSessionsCard = () => {
           <Monitor className="mr-2" size={20} />
           PlayStation Aktif
         </h3>
-        <span className="bg-blue-600 text-xs rounded-full px-2 py-1">
-          {activeSessions.length} Sesi
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="bg-blue-600 text-xs rounded-full px-2 py-1">
+            {activeSessions.length} Sesi
+          </span>
+          <button 
+            onClick={fetchActiveSessions} 
+            disabled={refreshing}
+            className="p-1 rounded-full hover:bg-gray-700"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
       </div>
       
-      {activeSessions.length === 0 ? (
-        <div className="text-center py-4 text-gray-400">
-          Tidak ada sesi PlayStation aktif
+      {error && (
+        <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-800 rounded-lg text-sm text-red-200">
+          {error}
+          <button 
+            onClick={fetchActiveSessions}
+            className="ml-2 underline"
+          >
+            Coba lagi
+          </button>
+        </div>
+      )}
+      
+      {activeSessions.length === 0 && !error ? (
+        <div className="text-center py-6 text-gray-400">
+          <Monitor size={36} className="mx-auto mb-3 opacity-30" />
+          <p>Tidak ada sesi PlayStation aktif</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -109,32 +128,32 @@ const ActiveSessionsCard = () => {
             <div 
               key={session.session_id} 
               className={`bg-gray-700 rounded-lg p-3 border ${
-                session.remaining.total_seconds < 900 && !session.remaining.is_overdue
+                session.remaining?.total_seconds < 900 && !session.remaining?.is_overdue
                   ? 'border-yellow-500' 
-                  : session.remaining.is_overdue 
+                  : session.remaining?.is_overdue 
                     ? 'border-red-500' 
                     : 'border-green-500'
               }`}
             >
               <div className="flex justify-between">
                 <div>
-                  <div className="font-medium">{session.Device.device_name}</div>
-                  <div className="text-sm text-gray-400">{session.Device.device_type}</div>
+                  <div className="font-medium">{session.Device?.device_name}</div>
+                  <div className="text-sm text-gray-400">{session.Device?.device_type}</div>
                 </div>
                 <div className="text-right">
                   <div className={`flex items-center ${
-                    session.remaining.total_seconds < 900 && !session.remaining.is_overdue
+                    session.remaining?.total_seconds < 900 && !session.remaining?.is_overdue
                       ? 'text-yellow-500' 
-                      : session.remaining.is_overdue 
+                      : session.remaining?.is_overdue 
                         ? 'text-red-500' 
                         : 'text-green-500'
                   }`}>
                     <Clock size={16} className="mr-1" />
-                    {session.remaining.is_overdue 
+                    {session.remaining?.is_overdue 
                       ? 'Waktu Habis' 
-                      : `${String(session.remaining.hours).padStart(2, '0')}:${
-                          String(session.remaining.minutes).padStart(2, '0')}:${
-                          String(session.remaining.seconds).padStart(2, '0')}`
+                      : `${String(session.remaining?.hours).padStart(2, '0')}:${
+                          String(session.remaining?.minutes).padStart(2, '0')}:${
+                          String(session.remaining?.seconds).padStart(2, '0')}`
                     }
                   </div>
                   <div className="text-xs text-gray-400">

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { DollarSign, TrendingUp } from 'lucide-react';
+import { DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const SalesStatsCard = () => {
   const [stats, setStats] = useState({
@@ -12,30 +13,24 @@ const SalesStatsCard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchSalesStats = async () => {
+    try {
+      setRefreshing(true);
+      const response = await api.get('/reports/daily-sales');
+      setStats(response.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching sales stats:', err);
+      setError('Gagal memuat data penjualan. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchSalesStats = async () => {
-      try {
-        // This would be a real API call to get sales stats
-        const response = await api.get('/reports/daily-sales');
-        setStats(response.data);
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching sales stats:', err);
-        
-        // For demo purposes, we'll set mock data
-        setStats({
-          todaySales: 1250000,
-          todayRentalSales: 850000,
-          todayFoodSales: 400000,
-          yesterday: 980000,
-          percentChange: 27.55
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchSalesStats();
   }, []);
 
@@ -55,10 +50,32 @@ const SalesStatsCard = () => {
 
   return (
     <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700">
-      <h3 className="text-lg font-semibold flex items-center mb-4">
-        <DollarSign className="mr-2" size={20} />
-        Penjualan Hari Ini
-      </h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold flex items-center">
+          <DollarSign className="mr-2" size={20} />
+          Penjualan Hari Ini
+        </h3>
+        <button 
+          onClick={fetchSalesStats} 
+          disabled={refreshing}
+          className="p-1 rounded-full hover:bg-gray-700"
+          title="Refresh"
+        >
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+        </button>
+      </div>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-800 rounded-lg text-sm text-red-200">
+          {error}
+          <button 
+            onClick={fetchSalesStats}
+            className="ml-2 underline"
+          >
+            Coba lagi
+          </button>
+        </div>
+      )}
       
       <div className="text-3xl font-bold mb-1">
         {formatCurrency(stats.todaySales)}

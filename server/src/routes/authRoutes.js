@@ -6,6 +6,7 @@ const roleCheck = require('../middleware/roleCheck');
 
 // Public routes
 router.post('/login', authController.login);
+router.post('/register-public', authController.registerPublic); // Add this new route
 
 // Protected routes
 router.get('/me', auth, authController.getCurrentUser);

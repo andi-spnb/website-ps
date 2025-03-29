@@ -10,6 +10,57 @@ const {
 } = require('../models');
 const { Op } = require('sequelize');
 
+// Get active rental sessions
+exports.getActiveRentals = async (req, res) => {
+  try {
+    const activeSessions = await RentalSession.findAll({
+      where: {
+        status: 'Active'
+      },
+      include: [
+        { model: Device },
+        { model: User },
+        { model: Staff, attributes: ['staff_id', 'name'] }
+      ],
+      order: [['start_time', 'ASC']]
+    });
+    
+    // Calculate remaining time for each session
+    const sessionsWithRemainingTime = activeSessions.map(session => {
+      const now = new Date();
+      const endTime = new Date(session.end_time);
+      const remainingMs = endTime - now;
+      
+      let remaining = {
+        hours: 0,
+        minutes: 0,
+        seconds: 0,
+        total_seconds: 0,
+        is_overdue: false
+      };
+      
+      if (remainingMs > 0) {
+        remaining.hours = Math.floor(remainingMs / (1000 * 60 * 60));
+        remaining.minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+        remaining.seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+        remaining.total_seconds = Math.floor(remainingMs / 1000);
+      } else {
+        remaining.is_overdue = true;
+      }
+      
+      return {
+        ...session.toJSON(),
+        remaining
+      };
+    });
+    
+    res.json(sessionsWithRemainingTime);
+  } catch (error) {
+    console.error('Error fetching active rentals:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 // Start new rental session
 exports.startRental = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -34,31 +85,29 @@ exports.startRental = async (req, res) => {
     const start_time = new Date();
     const end_time = new Date(start_time.getTime() + (duration_hours * 60 * 60 * 1000));
     
-    // Get pricing
-    const pricing = await Pricing.findOne({
-      where: {
-        device_type: device.device_type,
-        [Op.or]: [
-          { time_condition: 'Any' },
-          { time_condition: start_time.getDay() === 0 || start_time.getDay() === 6 ? 'Weekend' : 'Weekday' }
-        ]
-      },
-      order: [['price_id', 'DESC']], // Prioritize more specific pricing
-      transaction
-    });
-    
-    if (!pricing) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Harga tidak ditemukan untuk jenis perangkat ini' });
+    // Get pricing (simplified for example)
+    let total_amount = 0;
+    switch (device.device_type) {
+      case 'PS5':
+        total_amount = duration_hours * 20000;
+        break;
+      case 'PS4':
+        total_amount = duration_hours * 15000;
+        break;
+      case 'PS3':
+        total_amount = duration_hours * 10000;
+        break;
+      default:
+        total_amount = duration_hours * 15000;
     }
     
-    // Calculate total amount
-    let total_amount;
-    if (duration_hours >= (pricing.package_hours || 99999) && pricing.package_amount) {
-      // Use package price if duration meets package requirement
-      total_amount = pricing.package_amount;
-    } else {
-      total_amount = pricing.amount_per_hour * duration_hours;
+    // Apply discount based on duration
+    if (duration_hours >= 10) {
+      total_amount = total_amount * 0.8; // 20% discount
+    } else if (duration_hours >= 5) {
+      total_amount = total_amount * 0.9; // 10% discount
+    } else if (duration_hours >= 3) {
+      total_amount = total_amount * 0.95; // 5% discount
     }
     
     // Create rental session
@@ -86,23 +135,6 @@ exports.startRental = async (req, res) => {
       amount: total_amount,
       payment_method,
       transaction_time: new Date()
-    }, { transaction });
-    
-    // Schedule notifications for time warnings (handled by background job)
-    await Notification.create({
-      target_id: session.session_id,
-      type: 'TimeWarning',
-      message: `PlayStation ${device.device_name} akan habis dalam 15 menit`,
-      created_at: new Date(end_time.getTime() - (15 * 60 * 1000)), // 15 minutes before end
-      is_read: false
-    }, { transaction });
-    
-    await Notification.create({
-      target_id: session.session_id,
-      type: 'TimeWarning',
-      message: `PlayStation ${device.device_name} akan habis dalam 5 menit`,
-      created_at: new Date(end_time.getTime() - (5 * 60 * 1000)), // 5 minutes before end
-      is_read: false
     }, { transaction });
     
     await transaction.commit();
@@ -153,19 +185,6 @@ exports.endRental = async (req, res) => {
     // Update device status
     await session.Device.update({ status: 'Available' }, { transaction });
     
-    // Clear any pending notifications
-    await Notification.update(
-      { is_read: true },
-      { 
-        where: { 
-          target_id: session_id,
-          type: 'TimeWarning',
-          is_read: false
-        },
-        transaction
-      }
-    );
-    
     await transaction.commit();
     
     res.json({
@@ -202,26 +221,21 @@ exports.extendRental = async (req, res) => {
       return res.status(404).json({ message: 'Sesi rental aktif tidak ditemukan' });
     }
     
-    // Get pricing
-    const pricing = await Pricing.findOne({
-      where: {
-        device_type: session.Device.device_type,
-        [Op.or]: [
-          { time_condition: 'Any' },
-          { time_condition: new Date().getDay() === 0 || new Date().getDay() === 6 ? 'Weekend' : 'Weekday' }
-        ]
-      },
-      order: [['price_id', 'DESC']], // Prioritize more specific pricing
-      transaction
-    });
-    
-    if (!pricing) {
-      await transaction.rollback();
-      return res.status(404).json({ message: 'Harga tidak ditemukan untuk jenis perangkat ini' });
+    // Calculate additional amount (simplified)
+    let hourly_rate = 15000; // Default
+    switch (session.Device.device_type) {
+      case 'PS5':
+        hourly_rate = 20000;
+        break;
+      case 'PS4':
+        hourly_rate = 15000;
+        break;
+      case 'PS3':
+        hourly_rate = 10000;
+        break;
     }
     
-    // Calculate additional amount
-    const additional_amount = pricing.amount_per_hour * additional_hours;
+    const additional_amount = hourly_rate * additional_hours;
     
     // Calculate new end time
     const new_end_time = new Date(session.end_time.getTime() + (additional_hours * 60 * 60 * 1000));
@@ -242,33 +256,6 @@ exports.extendRental = async (req, res) => {
       transaction_time: new Date()
     }, { transaction });
     
-    // Update notifications for new end time
-    await Notification.destroy({
-      where: {
-        target_id: session_id,
-        type: 'TimeWarning',
-        is_read: false
-      },
-      transaction
-    });
-    
-    // Create new notifications
-    await Notification.create({
-      target_id: session.session_id,
-      type: 'TimeWarning',
-      message: `PlayStation ${session.Device.device_name} akan habis dalam 15 menit`,
-      created_at: new Date(new_end_time.getTime() - (15 * 60 * 1000)), // 15 minutes before end
-      is_read: false
-    }, { transaction });
-    
-    await Notification.create({
-      target_id: session.session_id,
-      type: 'TimeWarning',
-      message: `PlayStation ${session.Device.device_name} akan habis dalam 5 menit`,
-      created_at: new Date(new_end_time.getTime() - (5 * 60 * 1000)), // 5 minutes before end
-      is_read: false
-    }, { transaction });
-    
     await transaction.commit();
     
     res.json({
@@ -282,57 +269,6 @@ exports.extendRental = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Error extending rental:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-};
-
-// Get active rental sessions
-exports.getActiveRentals = async (req, res) => {
-  try {
-    const activeSessions = await RentalSession.findAll({
-      where: {
-        status: 'Active'
-      },
-      include: [
-        { model: Device },
-        { model: User },
-        { model: Staff, attributes: ['staff_id', 'name'] }
-      ],
-      order: [['start_time', 'ASC']]
-    });
-    
-    // Calculate remaining time for each session
-    const sessionsWithRemainingTime = activeSessions.map(session => {
-      const now = new Date();
-      const endTime = new Date(session.end_time);
-      const remainingMs = endTime - now;
-      
-      let remaining = {
-        hours: 0,
-        minutes: 0,
-        seconds: 0,
-        total_seconds: 0,
-        is_overdue: false
-      };
-      
-      if (remainingMs > 0) {
-        remaining.hours = Math.floor(remainingMs / (1000 * 60 * 60));
-        remaining.minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-        remaining.seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
-        remaining.total_seconds = Math.floor(remainingMs / 1000);
-      } else {
-        remaining.is_overdue = true;
-      }
-      
-      return {
-        ...session.toJSON(),
-        remaining
-      };
-    });
-    
-    res.json(sessionsWithRemainingTime);
-  } catch (error) {
-    console.error('Error fetching active rentals:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

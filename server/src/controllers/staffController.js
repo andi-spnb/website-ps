@@ -1,19 +1,14 @@
 const { Staff } = require('../models');
 const { Op } = require('sequelize');
+const bcrypt = require('bcrypt');
+const sequelize = require('../config/database');
 
 // Get all staff
 exports.getAllStaff = async (req, res) => {
   try {
-    // Owner dapat melihat semua karyawan
-    // Admin hanya dapat melihat karyawan dengan peran Cashier dan Admin
-    const whereClause = req.userData.role === 'Owner' 
-      ? {} 
-      : { role: { [Op.in]: ['Cashier', 'Admin'] } };
-    
     const staff = await Staff.findAll({
-      where: whereClause,
       attributes: { exclude: ['password_hash'] },
-      order: [['role', 'ASC'], ['name', 'ASC']]
+      order: [['name', 'ASC']]
     });
     
     res.json(staff);
@@ -34,11 +29,6 @@ exports.getStaffById = async (req, res) => {
       return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
     }
     
-    // Admin tidak boleh melihat detail Owner
-    if (req.userData.role !== 'Owner' && staff.role === 'Owner') {
-      return res.status(403).json({ message: 'Anda tidak memiliki izin yang cukup' });
-    }
-    
     res.json(staff);
   } catch (error) {
     console.error('Error fetching staff:', error);
@@ -46,35 +36,100 @@ exports.getStaffById = async (req, res) => {
   }
 };
 
-// Update staff status
-exports.updateStaffStatus = async (req, res) => {
+// Create new staff
+exports.createStaff = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
   try {
-    const { status } = req.body;
+    const { name, role, username, password } = req.body;
     
-    if (!status || !['Active', 'Inactive'].includes(status)) {
-      return res.status(400).json({ message: 'Status tidak valid' });
+    // Check if username already exists
+    const existingStaff = await Staff.findOne({ 
+      where: { username },
+      transaction
+    });
+    
+    if (existingStaff) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Username sudah digunakan' });
     }
     
-    const staff = await Staff.findByPk(req.params.id);
+    // Create new staff
+    const newStaff = await Staff.create({
+      name,
+      role,
+      username,
+      password_hash: password, // Will be hashed by the model hook
+      status: 'Active'
+    }, { transaction });
+    
+    await transaction.commit();
+    
+    res.status(201).json({
+      message: 'Karyawan berhasil ditambahkan',
+      staff: {
+        staff_id: newStaff.staff_id,
+        name: newStaff.name,
+        role: newStaff.role,
+        status: newStaff.status
+      }
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error creating staff:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Update staff
+exports.updateStaff = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const { name, role, username, password } = req.body;
+    const staffId = req.params.id;
+    
+    const staff = await Staff.findByPk(staffId, { transaction });
     
     if (!staff) {
+      await transaction.rollback();
       return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
     }
     
-    // Admin tidak boleh mengubah status Owner
-    if (req.userData.role !== 'Owner' && staff.role === 'Owner') {
-      return res.status(403).json({ message: 'Anda tidak memiliki izin yang cukup' });
+    // Check if username is changed and already exists
+    if (username !== staff.username) {
+      const existingStaff = await Staff.findOne({ 
+        where: { 
+          username,
+          staff_id: { [Op.ne]: staffId }
+        },
+        transaction
+      });
+      
+      if (existingStaff) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Username sudah digunakan' });
+      }
     }
     
-    // User tidak boleh mengubah status dirinya sendiri
-    if (staff.staff_id === req.userData.staff_id) {
-      return res.status(400).json({ message: 'Anda tidak dapat mengubah status akun Anda sendiri' });
+    // Update staff
+    const updateData = {
+      name,
+      role,
+      username
+    };
+    
+    // Add password only if provided
+    if (password && password.trim() !== '') {
+      updateData.password_hash = password;
     }
     
-    await staff.update({ status });
+    await staff.update(updateData, { transaction });
+    
+    await transaction.commit();
     
     res.json({
-      message: `Status karyawan berhasil diperbarui menjadi ${status}`,
+      message: 'Karyawan berhasil diperbarui',
       staff: {
         staff_id: staff.staff_id,
         name: staff.name,
@@ -83,35 +138,89 @@ exports.updateStaffStatus = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error updating staff status:', error);
+    await transaction.rollback();
+    console.error('Error updating staff:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
 // Delete staff
 exports.deleteStaff = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
   try {
-    const staff = await Staff.findByPk(req.params.id);
+    const staffId = req.params.id;
+    
+    // Prevent deleting self
+    if (staffId == req.userData.staff_id) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Tidak dapat menghapus akun sendiri' });
+    }
+    
+    // Prevent deleting the last owner
+    if (req.userData.role !== 'Owner') {
+      const staff = await Staff.findByPk(staffId, { transaction });
+      
+      if (staff && staff.role === 'Owner') {
+        await transaction.rollback();
+        return res.status(403).json({ message: 'Tidak memiliki izin untuk menghapus Owner' });
+      }
+    }
+    
+    const staff = await Staff.findByPk(staffId, { transaction });
+    
+    if (!staff) {
+      await transaction.rollback();
+      return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
+    }
+    
+    await staff.destroy({ transaction });
+    
+    await transaction.commit();
+    
+    res.json({ message: 'Karyawan berhasil dihapus' });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error deleting staff:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Change staff status
+exports.changeStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const staffId = req.params.id;
+    
+    // Validate status
+    if (status !== 'Active' && status !== 'Inactive') {
+      return res.status(400).json({ message: 'Status tidak valid' });
+    }
+    
+    // Prevent changing own status
+    if (staffId == req.userData.staff_id) {
+      return res.status(400).json({ message: 'Tidak dapat mengubah status akun sendiri' });
+    }
+    
+    const staff = await Staff.findByPk(staffId);
     
     if (!staff) {
       return res.status(404).json({ message: 'Karyawan tidak ditemukan' });
     }
     
-    // Admin tidak boleh menghapus Owner
-    if (req.userData.role !== 'Owner' && staff.role === 'Owner') {
-      return res.status(403).json({ message: 'Anda tidak memiliki izin yang cukup' });
-    }
+    await staff.update({ status });
     
-    // User tidak boleh menghapus dirinya sendiri
-    if (staff.staff_id === req.userData.staff_id) {
-      return res.status(400).json({ message: 'Anda tidak dapat menghapus akun Anda sendiri' });
-    }
-    
-    await staff.destroy();
-    
-    res.json({ message: 'Karyawan berhasil dihapus' });
+    res.json({
+      message: 'Status karyawan berhasil diperbarui',
+      staff: {
+        staff_id: staff.staff_id,
+        name: staff.name,
+        role: staff.role,
+        status: staff.status
+      }
+    });
   } catch (error) {
-    console.error('Error deleting staff:', error);
+    console.error('Error changing staff status:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

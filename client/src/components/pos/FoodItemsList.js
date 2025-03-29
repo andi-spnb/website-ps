@@ -3,8 +3,45 @@ import { Search, Coffee, Info, Plus } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import api from '../../services/api';
 
+// Data default dari database SQL yang diberikan
+const DEFAULT_FOOD_ITEMS = [
+  {
+    item_id: 1,
+    name: 'Mie Goreng Instan',
+    category: 'Food',
+    price: 12000,
+    stock_quantity: 25,
+    image_url: null,
+    is_available: true,
+    createdAt: '2025-03-28T15:01:59',
+    updatedAt: '2025-03-28T15:01:59'
+  },
+  {
+    item_id: 2,
+    name: 'Coca Cola',
+    category: 'Drink',
+    price: 8000,
+    stock_quantity: 50,
+    image_url: null,
+    is_available: true,
+    createdAt: '2025-03-28T15:01:59',
+    updatedAt: '2025-03-28T15:01:59'
+  },
+  {
+    item_id: 3,
+    name: 'Keripik',
+    category: 'Snack',
+    price: 10000,
+    stock_quantity: 15,
+    image_url: null,
+    is_available: true,
+    createdAt: '2025-03-28T15:01:59',
+    updatedAt: '2025-03-28T15:01:59'
+  }
+];
+
 const FoodItemsList = () => {
-  const { addFoodItem } = useCart();
+  const { addFoodItem } = useCart() || { addFoodItem: () => {} };
   const [foodItems, setFoodItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -14,11 +51,24 @@ const FoodItemsList = () => {
   useEffect(() => {
     const fetchFoodItems = async () => {
       try {
-        const response = await api.get('/food/items');
-        setFoodItems(response.data);
-        setError(null);
+        setLoading(true);
+        
+        // Try to get data from API
+        try {
+          const response = await api.get('/food/items');
+          console.log("API response for food items:", response.data);
+          setFoodItems(response.data);
+          setError(null);
+        } catch (apiError) {
+          console.error('Error fetching food items from API:', apiError);
+          
+          // Fallback to default data if API fails
+          console.log("Using default food items data");
+          setFoodItems(DEFAULT_FOOD_ITEMS);
+          setError(null);
+        }
       } catch (err) {
-        console.error('Error fetching food items:', err);
+        console.error('Error in fetchFoodItems:', err);
         setError('Gagal memuat data makanan dan minuman');
       } finally {
         setLoading(false);

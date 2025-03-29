@@ -27,7 +27,7 @@ exports.login = async (req, res) => {
         username: staff.username,
         role: staff.role
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'kenzie-gaming-secret-key',
       { expiresIn: '12h' }
     );
 
@@ -46,7 +46,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// Get current user info
+// Get current user info - Tambahkan fungsi ini
 exports.getCurrentUser = async (req, res) => {
   try {
     const staff = await Staff.findByPk(req.userData.staff_id, {
@@ -68,26 +68,6 @@ exports.getCurrentUser = async (req, res) => {
 exports.register = async (req, res) => {
   try {
     const { name, role, username, password } = req.body;
-    
-    // Validasi input
-    if (!name || !username || !password || !role) {
-      return res.status(400).json({ message: 'Semua field harus diisi' });
-    }
-    
-    if (password.length < 6) {
-      return res.status(400).json({ message: 'Password harus minimal 6 karakter' });
-    }
-    
-    // Validasi peran
-    const allowedRoles = ['Cashier', 'Admin', 'Owner'];
-    if (!allowedRoles.includes(role)) {
-      return res.status(400).json({ message: 'Peran tidak valid' });
-    }
-    
-    // Admin tidak boleh membuat akun Owner
-    if (req.userData.role !== 'Owner' && role === 'Owner') {
-      return res.status(403).json({ message: 'Anda tidak memiliki izin untuk membuat akun Owner' });
-    }
     
     // Check if username already exists
     const existingStaff = await Staff.findOne({ where: { username } });
@@ -132,10 +112,6 @@ exports.changePassword = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({ message: 'Password saat ini salah' });
     }
-    
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: 'Password baru harus minimal 6 karakter' });
-    }
 
     staff.password_hash = newPassword; // Will be hashed by model hook
     await staff.save();
@@ -143,6 +119,46 @@ exports.changePassword = async (req, res) => {
     res.json({ message: 'Password berhasil diubah' });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+exports.registerPublic = async (req, res) => {
+  try {
+    const { name, username, password, role } = req.body;
+    
+    // Check if username already exists
+    const existingStaff = await Staff.findOne({ where: { username } });
+    if (existingStaff) {
+      return res.status(400).json({ message: 'Username sudah digunakan' });
+    }
+    
+    // For public registration, limit role choices
+    let safeRole = 'Cashier'; // Default to Cashier
+    
+    if (role === 'Admin') {
+      // Admin accounts are pending approval
+      safeRole = 'Cashier'; // Still create as Cashier, admin can upgrade later
+    }
+    
+    // Create new staff
+    const newStaff = await Staff.create({
+      name,
+      role: safeRole,
+      username,
+      password_hash: password, // Will be hashed by the model hook
+      status: 'Active' // Auto-activate Cashier accounts, Admin would need approval
+    });
+
+    res.status(201).json({
+      message: 'Pendaftaran berhasil',
+      staff: {
+        staff_id: newStaff.staff_id,
+        name: newStaff.name,
+        role: newStaff.role
+      }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

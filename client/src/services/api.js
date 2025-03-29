@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+// Set your backend URL here - pastikan ini sesuai dengan port server Anda
+const BASE_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -10,43 +11,50 @@ const api = axios.create({
   }
 });
 
-// Add request debug
+// Initialize token from localStorage if it exists
+const token = localStorage.getItem('token');
+if (token) {
+  api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+}
+
+// Request interceptor for adding token to header
 api.interceptors.request.use(
   (config) => {
-    console.log(`API Request: ${config.method.toUpperCase()} ${config.url}`, config.data || '');
-    
+    console.log("API Request:", config.url);
     const token = localStorage.getItem('token');
-    if (token) {
-      console.log('Adding token to request');
+    if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    
     return config;
   },
   (error) => {
-    console.error('API Request Error:', error);
+    console.error("Request Error:", error);
     return Promise.reject(error);
   }
 );
 
-// Add response debug
+// Response interceptor for handling errors
 api.interceptors.response.use(
   (response) => {
-    console.log(`API Response: ${response.status} from ${response.config.url}`, response.data);
+    console.log("API Response:", response.status, response.config.url);
     return response;
   },
   (error) => {
-    console.error('API Response Error:', error.response?.status || 'No status', 
-                  error.response?.data || error.message);
+    console.error("API Error:", 
+      error.response?.status, 
+      error.response?.config?.url, 
+      error.response?.data
+    );
     
-    // Redirect ke login jika unauthorized (401)
+    // Token expired or invalid - 401 Unauthorized
     if (error.response && error.response.status === 401) {
-      // Check if we're not already on the login page
+      // Only redirect if not already on login page
       if (!window.location.pathname.includes('/login')) {
-        console.log('Unauthorized, redirecting to login');
+        console.log('Authentication failed. Redirecting to login...');
         localStorage.removeItem('token');
-        localStorage.removeItem('currentUser');
-        window.location.href = '/login';
+        delete api.defaults.headers.common['Authorization'];
+        // Use replace to avoid adding to navigation history
+        window.location.replace('/login');
       }
     }
     

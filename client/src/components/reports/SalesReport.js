@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Calendar, Download, Filter } from 'lucide-react';
+import { Calendar, Download, Filter, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const SalesReport = () => {
   const [salesData, setSalesData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setDate(new Date().getDate() - 6)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
@@ -15,48 +17,17 @@ const SalesReport = () => {
 
   const fetchSalesData = async () => {
     try {
-      setLoading(true);
+      setRefreshing(true);
       const response = await api.get(`/reports/sales?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&groupBy=${groupBy}`);
       setSalesData(response.data);
       setError(null);
     } catch (err) {
       console.error('Error fetching sales data:', err);
-      setError('Gagal memuat data penjualan');
-      
-      // Mock data for demo
-      if (groupBy === 'day') {
-        // Daily data for the last 7 days
-        const mockData = [];
-        const endDate = new Date(dateRange.endDate);
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date();
-          date.setDate(endDate.getDate() - i);
-          mockData.push({
-            date: date.toISOString().split('T')[0],
-            label: new Date(date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' }),
-            rentalSales: Math.floor(Math.random() * 700000) + 500000,
-            foodSales: Math.floor(Math.random() * 300000) + 200000
-          });
-        }
-        setSalesData(mockData);
-      } else if (groupBy === 'month') {
-        // Monthly data for the last 6 months
-        const mockData = [];
-        const currentMonth = new Date().getMonth();
-        for (let i = 5; i >= 0; i--) {
-          const date = new Date();
-          date.setMonth(currentMonth - i);
-          mockData.push({
-            date: `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`,
-            label: new Date(date).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
-            rentalSales: Math.floor(Math.random() * 3000000) + 2000000,
-            foodSales: Math.floor(Math.random() * 1500000) + 1000000
-          });
-        }
-        setSalesData(mockData);
-      }
+      setError('Gagal memuat data penjualan. Silakan coba lagi.');
+      toast.error('Gagal memuat data penjualan: ' + (err.response?.data?.message || 'Server error'));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -112,32 +83,28 @@ const SalesReport = () => {
     link.click();
   };
 
-  if (loading) {
-    return (
-      <div className="animate-pulse space-y-4">
-        <div className="h-10 bg-gray-700 rounded w-1/3 mb-4"></div>
-        <div className="h-12 bg-gray-700 rounded mb-4"></div>
-        <div className="h-64 bg-gray-700 rounded mb-4"></div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="h-24 bg-gray-700 rounded"></div>
-          <div className="h-24 bg-gray-700 rounded"></div>
-          <div className="h-24 bg-gray-700 rounded"></div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Laporan Penjualan</h2>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
-        >
-          <Download size={16} className="mr-1" />
-          Export CSV
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={fetchSalesData}
+            disabled={refreshing}
+            className="flex items-center bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded-lg"
+          >
+            <RefreshCw size={16} className={`mr-1 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+          <button
+            onClick={exportToCSV}
+            className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
+            disabled={salesData.length === 0 || loading}
+          >
+            <Download size={16} className="mr-1" />
+            Export CSV
+          </button>
+        </div>
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -191,26 +158,42 @@ const SalesReport = () => {
       {error && (
         <div className="bg-red-900 bg-opacity-20 p-4 rounded-lg border border-red-500 mb-6">
           <p className="text-red-400">{error}</p>
+          <button 
+            onClick={fetchSalesData}
+            className="mt-2 text-red-400 underline"
+          >
+            Coba lagi
+          </button>
         </div>
       )}
       
-      <div className="h-80 mb-6">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={salesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="label" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" tickFormatter={(value) => `Rp${(value / 1000000).toFixed(1)}jt`} />
-            <Tooltip
-              formatter={(value) => [`${formatCurrency(value)}`, undefined]}
-              labelFormatter={(label) => `Tanggal: ${label}`}
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-            />
-            <Legend />
-            <Bar dataKey="rentalSales" name="Pendapatan Rental" fill="#3B82F6" />
-            <Bar dataKey="foodSales" name="Pendapatan F&B" fill="#10B981" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
+      {loading ? (
+        <div className="h-80 mb-6 bg-gray-700 rounded-lg animate-pulse"></div>
+      ) : salesData.length === 0 ? (
+        <div className="h-80 mb-6 flex items-center justify-center bg-gray-700 rounded-lg">
+          <div className="text-center text-gray-400">
+            <p>Tidak ada data penjualan dalam periode ini</p>
+          </div>
+        </div>
+      ) : (
+        <div className="h-80 mb-6">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={salesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+              <XAxis dataKey="label" stroke="#9CA3AF" />
+              <YAxis stroke="#9CA3AF" tickFormatter={(value) => `Rp${(value / 1000000).toFixed(1)}jt`} />
+              <Tooltip
+                formatter={(value) => [`${formatCurrency(value)}`, undefined]}
+                labelFormatter={(label) => `Tanggal: ${label}`}
+                contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
+              />
+              <Legend />
+              <Bar dataKey="rentalSales" name="Pendapatan Rental" fill="#3B82F6" />
+              <Bar dataKey="foodSales" name="Pendapatan F&B" fill="#10B981" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-gray-700 rounded-lg p-4">
@@ -225,7 +208,7 @@ const SalesReport = () => {
           <div className="text-sm text-gray-400 mb-1">Pendapatan Rental</div>
           <div className="text-xl font-bold">{formatCurrency(totalRentalSales)}</div>
           <div className="text-xs text-gray-500 mt-1">
-            {Math.round((totalRentalSales / totalRevenue) * 100)}% dari total pendapatan
+            {totalRevenue > 0 ? Math.round((totalRentalSales / totalRevenue) * 100) : 0}% dari total pendapatan
           </div>
         </div>
         
@@ -233,7 +216,7 @@ const SalesReport = () => {
           <div className="text-sm text-gray-400 mb-1">Pendapatan F&B</div>
           <div className="text-xl font-bold">{formatCurrency(totalFoodSales)}</div>
           <div className="text-xs text-gray-500 mt-1">
-            {Math.round((totalFoodSales / totalRevenue) * 100)}% dari total pendapatan
+            {totalRevenue > 0 ? Math.round((totalFoodSales / totalRevenue) * 100) : 0}% dari total pendapatan
           </div>
         </div>
       </div>

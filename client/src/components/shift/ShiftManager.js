@@ -1,77 +1,98 @@
-import React, { useState } from 'react';
-import { Clock, DollarSign, User, Check, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Clock, DollarSign, User, Check, AlertCircle, X, RefreshCw } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { useShift } from '../../contexts/ShiftContext';
+import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const ShiftManager = () => {
-  const [currentShift, setCurrentShift] = useState(null);
+  const { currentUser } = useAuth();
+  const { currentShift, loading: shiftLoading, startShift, endShift, checkActiveShift } = useShift();
   const [openingBalance, setOpeningBalance] = useState('');
   const [closingBalance, setClosingBalance] = useState('');
   const [notes, setNotes] = useState('');
+  const [shiftHistory, setShiftHistory] = useState([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [showEndShiftModal, setShowEndShiftModal] = useState(false);
-  const [shiftHistory, setShiftHistory] = useState([
-    {
-      shift_id: 1,
-      staff: { name: 'Budi', role: 'Cashier' },
-      start_time: new Date(Date.now() - 86400000).toISOString(), // Yesterday
-      end_time: new Date(Date.now() - 60000000).toISOString(),
-      opening_balance: 500000,
-      closing_balance: 1250000,
-      total_sales: 750000,
-      status: 'Closed'
-    },
-    {
-      shift_id: 2,
-      staff: { name: 'Siti', role: 'Cashier' },
-      start_time: new Date(Date.now() - 172800000).toISOString(), // 2 days ago
-      end_time: new Date(Date.now() - 146400000).toISOString(),
-      opening_balance: 500000,
-      closing_balance: 1100000,
-      total_sales: 600000,
-      status: 'Closed'
-    }
-  ]);
+  const [processingStart, setProcessingStart] = useState(false);
+  const [processingEnd, setProcessingEnd] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleStartShift = (e) => {
+  const fetchShiftHistory = async () => {
+    try {
+      setLoadingHistory(true);
+      setRefreshing(true);
+      const response = await api.get('/shifts/history?limit=5');
+      setShiftHistory(response.data);
+    } catch (err) {
+      console.error('Error fetching shift history:', err);
+      toast.error('Gagal memuat riwayat shift: ' + (err.response?.data?.message || 'Server error'));
+    } finally {
+      setLoadingHistory(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Fetch shift history when component mounts or when shift status changes
+  useEffect(() => {
+    fetchShiftHistory();
+  }, [currentShift]);
+
+  // Refresh current shift data
+  useEffect(() => {
+    if (currentUser) {
+      checkActiveShift();
+    }
+  }, [currentUser]);
+  
+  const handleStartShift = async (e) => {
     e.preventDefault();
+    
     if (!openingBalance || parseFloat(openingBalance) <= 0) {
-      alert('Saldo awal harus diisi dengan nilai lebih dari 0');
+      toast.error('Saldo awal harus diisi dengan nilai lebih dari 0');
       return;
     }
     
-    // Simulasi memulai shift
-    setCurrentShift({
-      shift_id: Date.now(),
-      staff: { name: 'Admin', role: 'Admin' },
-      start_time: new Date().toISOString(),
-      opening_balance: parseFloat(openingBalance),
-      total_sales: 0,
-      status: 'Active'
-    });
-    
-    setOpeningBalance('');
+    try {
+      setProcessingStart(true);
+      await startShift(parseFloat(openingBalance));
+      toast.success('Shift berhasil dimulai');
+      setOpeningBalance('');
+      // Refresh shift history
+      await fetchShiftHistory();
+    } catch (err) {
+      console.error('Error starting shift:', err);
+      toast.error(err.response?.data?.message || 'Gagal memulai shift');
+    } finally {
+      setProcessingStart(false);
+    }
   };
 
-  const handleEndShift = (e) => {
+  const handleEndShift = async (e) => {
     e.preventDefault();
+    
     if (!closingBalance || parseFloat(closingBalance) <= 0) {
-      alert('Saldo akhir harus diisi dengan nilai lebih dari 0');
+      toast.error('Saldo akhir harus diisi dengan nilai lebih dari 0');
       return;
     }
     
-    // Simulasi mengakhiri shift
-    const endedShift = {
-      ...currentShift,
-      end_time: new Date().toISOString(),
-      closing_balance: parseFloat(closingBalance),
-      status: 'Closed'
-    };
-    
-    setShiftHistory([endedShift, ...shiftHistory]);
-    setCurrentShift(null);
-    setClosingBalance('');
-    setNotes('');
-    setShowEndShiftModal(false);
+    try {
+      setProcessingEnd(true);
+      await endShift(parseFloat(closingBalance), notes);
+      toast.success('Shift berhasil diakhiri');
+      setClosingBalance('');
+      setNotes('');
+      setShowEndShiftModal(false);
+      // Refresh shift history
+      await fetchShiftHistory();
+    } catch (err) {
+      console.error('Error ending shift:', err);
+      toast.error(err.response?.data?.message || 'Gagal mengakhiri shift');
+    } finally {
+      setProcessingEnd(false);
+    }
   };
-
+  
   const formatCurrency = (amount) => {
     return `Rp${amount.toLocaleString('id-ID')}`;
   };
@@ -93,10 +114,36 @@ const ShiftManager = () => {
     });
   };
 
+  if (shiftLoading) {
+    return (
+      <div className="animate-pulse space-y-4">
+        <div className="h-48 bg-gray-700 rounded mb-6"></div>
+        <div className="h-8 bg-gray-700 rounded w-1/4 mb-4"></div>
+        <div className="space-y-3">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-16 bg-gray-700 rounded"></div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {/* Current Shift Status */}
       <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 mb-8">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Status Shift</h3>
+          <button 
+            onClick={checkActiveShift} 
+            disabled={refreshing}
+            className="p-1 rounded-full hover:bg-gray-700"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+          </button>
+        </div>
+        
         {currentShift ? (
           <>
             <div className="flex justify-between items-start mb-6">
@@ -123,10 +170,10 @@ const ShiftManager = () => {
                 <div className="text-sm text-gray-400 mb-1">Karyawan</div>
                 <div className="flex items-center">
                   <User size={16} className="mr-2 text-blue-500" />
-                  <span className="font-medium">{currentShift.staff.name}</span>
+                  <span className="font-medium">{currentUser?.name}</span>
                 </div>
                 <div className="text-xs text-gray-500 mt-1">
-                  {currentShift.staff.role}
+                  {currentUser?.role}
                 </div>
               </div>
               
@@ -188,10 +235,24 @@ const ShiftManager = () => {
               
               <button
                 type="submit"
-                className="w-full py-2 rounded-lg font-medium flex items-center justify-center bg-green-600 hover:bg-green-700"
+                disabled={processingStart}
+                className={`w-full py-2 rounded-lg font-medium flex items-center justify-center ${
+                  processingStart
+                    ? "bg-green-800 cursor-not-allowed"
+                    : "bg-green-600 hover:bg-green-700"
+                }`}
               >
-                <Check size={16} className="mr-1" />
-                Mulai Shift
+                {processingStart ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                    Memproses...
+                  </>
+                ) : (
+                  <>
+                    <Check size={16} className="mr-1" />
+                    Mulai Shift
+                  </>
+                )}
               </button>
             </form>
           </>
@@ -200,38 +261,61 @@ const ShiftManager = () => {
       
       {/* Shift History */}
       <div>
-        <h3 className="text-lg font-semibold mb-4">Riwayat Shift</h3>
-        
-        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-gray-700">
-              <tr>
-                <th className="py-3 px-4 text-left">Karyawan</th>
-                <th className="py-3 px-4 text-left">Tanggal</th>
-                <th className="py-3 px-4 text-left">Waktu</th>
-                <th className="py-3 px-4 text-right">Saldo Awal</th>
-                <th className="py-3 px-4 text-right">Penjualan</th>
-                <th className="py-3 px-4 text-right">Saldo Akhir</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-700">
-              {shiftHistory.map(shift => (
-                <tr key={shift.shift_id} className="hover:bg-gray-750">
-                  <td className="py-3 px-4 font-medium">{shift.staff.name}</td>
-                  <td className="py-3 px-4">{formatDate(shift.start_time)}</td>
-                  <td className="py-3 px-4">
-                    {formatTime(shift.start_time)} - {shift.end_time ? formatTime(shift.end_time) : 'Aktif'}
-                  </td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(shift.opening_balance)}</td>
-                  <td className="py-3 px-4 text-right">{formatCurrency(shift.total_sales || 0)}</td>
-                  <td className="py-3 px-4 text-right">
-                    {shift.closing_balance ? formatCurrency(shift.closing_balance) : '-'}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Riwayat Shift</h3>
+          <button 
+            onClick={fetchShiftHistory} 
+            disabled={refreshing || loadingHistory}
+            className="p-1 rounded-full hover:bg-gray-700"
+            title="Refresh"
+          >
+            <RefreshCw size={16} className={refreshing || loadingHistory ? "animate-spin" : ""} />
+          </button>
         </div>
+        
+        {loadingHistory ? (
+          <div className="animate-pulse space-y-3">
+            {[...Array(3)].map((_, i) => (
+              <div key={i} className="h-16 bg-gray-700 rounded"></div>
+            ))}
+          </div>
+        ) : shiftHistory.length === 0 ? (
+          <div className="text-center py-8 text-gray-400 bg-gray-800 rounded-lg border border-gray-700">
+            <Clock size={48} className="mx-auto mb-3 opacity-30" />
+            <p>Belum ada riwayat shift</p>
+          </div>
+        ) : (
+          <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+            <table className="w-full">
+              <thead className="bg-gray-700">
+                <tr>
+                  <th className="py-3 px-4 text-left">Karyawan</th>
+                  <th className="py-3 px-4 text-left">Tanggal</th>
+                  <th className="py-3 px-4 text-left">Waktu</th>
+                  <th className="py-3 px-4 text-right">Saldo Awal</th>
+                  <th className="py-3 px-4 text-right">Penjualan</th>
+                  <th className="py-3 px-4 text-right">Saldo Akhir</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-700">
+                {shiftHistory.map(shift => (
+                  <tr key={shift.shift_id} className="hover:bg-gray-750">
+                    <td className="py-3 px-4 font-medium">{shift.staff?.name || 'Unknown'}</td>
+                    <td className="py-3 px-4">{formatDate(shift.start_time)}</td>
+                    <td className="py-3 px-4">
+                      {formatTime(shift.start_time)} - {shift.end_time ? formatTime(shift.end_time) : 'Aktif'}
+                    </td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(shift.opening_balance)}</td>
+                    <td className="py-3 px-4 text-right">{formatCurrency(shift.total_sales || 0)}</td>
+                    <td className="py-3 px-4 text-right">
+                      {shift.closing_balance ? formatCurrency(shift.closing_balance) : '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
       
       {/* End Shift Modal */}
@@ -288,15 +372,30 @@ const ShiftManager = () => {
                   type="button"
                   className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded-lg"
                   onClick={() => setShowEndShiftModal(false)}
+                  disabled={processingEnd}
                 >
                   Batal
                 </button>
                 <button 
                   type="submit"
-                  className="flex-1 py-2 rounded-lg font-medium flex items-center justify-center bg-red-600 hover:bg-red-700"
+                  disabled={processingEnd}
+                  className={`flex-1 py-2 rounded-lg font-medium flex items-center justify-center ${
+                    processingEnd
+                      ? "bg-red-800 cursor-not-allowed"
+                      : "bg-red-600 hover:bg-red-700"
+                  }`}
                 >
-                  <X size={16} className="mr-1" />
-                  Akhiri Shift
+                  {processingEnd ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Memproses...
+                    </>
+                  ) : (
+                    <>
+                      <X size={16} className="mr-1" />
+                      Akhiri Shift
+                    </>
+                  )}
                 </button>
               </div>
             </form>

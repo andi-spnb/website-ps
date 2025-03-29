@@ -1,3 +1,4 @@
+// src/models/Staff.js
 const { DataTypes } = require('sequelize');
 const sequelize = require('../config/database');
 const bcrypt = require('bcrypt');
@@ -34,13 +35,27 @@ const Staff = sequelize.define('Staff', {
   timestamps: true
 });
 
-// Hooks for password hashing
+// Method untuk membandingkan password
+Staff.prototype.comparePassword = async function(password) {
+  try {
+    return await bcrypt.compare(password, this.password_hash);
+  } catch (error) {
+    console.error('Password comparison error:', error);
+    return false;
+  }
+};
+
+// Hook untuk mengenkripsi password sebelum simpan
 Staff.beforeCreate(async (staff) => {
-  staff.password_hash = await bcrypt.hash(staff.password_hash, 10);
+  if (staff.password_hash) {
+    staff.password_hash = await bcrypt.hash(staff.password_hash, 10);
+  }
 });
 
-Staff.prototype.comparePassword = async function (password) {
-  return bcrypt.compare(password, this.password_hash);
-};
+Staff.beforeUpdate(async (staff) => {
+  if (staff.changed('password_hash')) {
+    staff.password_hash = await bcrypt.hash(staff.password_hash, 10);
+  }
+});
 
 module.exports = Staff;

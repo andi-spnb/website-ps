@@ -23,9 +23,8 @@ import FoodItemsPage from './pages/FoodItemsPage';
 import ReportsPage from './pages/ReportsPage';
 import ShiftPage from './pages/ShiftPage';
 import ProfilePage from './pages/ProfilePage';
+import StaffPage from './pages/StaffPage'; // Import halaman karyawan
 import NotFoundPage from './pages/NotFoundPage';
-import StaffManagementPage from './pages/StaffManagementPage';
-import StaffRegisterPage from './pages/StaffRegisterPage';
 
 function App() {
   return (
@@ -44,13 +43,10 @@ function App() {
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="members" element={<MembersPage />} />
                 <Route path="food" element={<FoodItemsPage />} />
+                <Route path="staff" element={<AdminRoute><StaffPage /></AdminRoute>} /> {/* Tambahkan rute staff */}
                 <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
                 <Route path="shift" element={<ShiftPage />} />
                 <Route path="profile" element={<ProfilePage />} />
-                
-                {/* Staff Management Routes */}
-                <Route path="staff" element={<AdminRoute><StaffManagementPage /></AdminRoute>} />
-                <Route path="register-staff" element={<AdminRoute><StaffRegisterPage /></AdminRoute>} />
               </Route>
               
               <Route path="*" element={<NotFoundPage />} />

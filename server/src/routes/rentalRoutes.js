@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const rentalController = require('../controllers/rentalController');
 const auth = require('../middleware/auth');
-const roleCheck = require('../middleware/roleCheck');
 
 // Get active rental sessions
 router.get('/active', auth, rentalController.getActiveRentals);
