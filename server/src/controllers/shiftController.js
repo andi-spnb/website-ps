@@ -25,7 +25,11 @@ exports.getShiftHistory = async (req, res) => {
     const { limit = 5 } = req.query;
     
     const shifts = await Shift.findAll({
-      include: [{ model: Staff, attributes: ['staff_id', 'name', 'role'] }],
+      include: [{ 
+        model: Staff, 
+        attributes: ['staff_id', 'name', 'role'],
+        as: 'Staff' // Pastikan alias sesuai dengan yang didefinisikan di model
+      }],
       order: [['start_time', 'DESC']],
       limit: parseInt(limit)
     });

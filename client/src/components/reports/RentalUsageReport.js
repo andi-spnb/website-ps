@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { Calendar, Download, Filter } from 'lucide-react';
+import { Calendar, Download, Filter, AlertCircle } from 'lucide-react';
+import { toast } from 'react-toastify'; // Tambahkan import ini
 import api from '../../services/api';
 
 const COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
@@ -20,14 +21,30 @@ const RentalUsageReport = () => {
   const fetchUsageData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/reports/rental-usage?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}`);
+      // Pastikan parameter dikirim dengan benar
+      const response = await api.get(`/reports/rental-usage`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate
+        }
+      });
+      
+      // Log respons untuk debugging
+      console.log('Data penggunaan diterima:', response.data);
+      
+      // Verifikasi struktur data yang diterima
+      if (!response.data.byPS || !response.data.byHour) {
+        throw new Error('Format data tidak valid');
+      }
+      
       setUsageData(response.data);
       setError(null);
     } catch (err) {
       console.error('Error fetching usage data:', err);
-      setError('Gagal memuat data penggunaan');
+      setError('Gagal memuat data penggunaan: ' + (err.response?.data?.message || err.message));
+      toast.error('Gagal memuat data penggunaan');
       
-      // Mock data for demo
+      // Data dummy untuk pengembangan jika API gagal
       const mockPSData = [
         { name: 'PS3', usage: 125, hours: 250 },
         { name: 'PS4', usage: 320, hours: 640 },
@@ -78,24 +95,61 @@ const RentalUsageReport = () => {
   const { totalSessions, totalHours } = calculateTotal();
 
   const exportToCSV = () => {
-    const byPSHeader = 'Jenis PS,Jumlah Penggunaan,Jam Penggunaan\n';
+    // Format angka dalam format Indonesia
+    const formatNumberID = (num) => {
+      return num.toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      });
+    };
+
+    // Header CSV untuk laporan penggunaan PS
+    const byPSHeader = 'Jenis PS,Jumlah Sesi,Jam Penggunaan,Rata-rata Jam per Sesi,Persentase\n';
+    
+    // Baris data untuk laporan penggunaan PS
     const byPSRows = usageData.byPS.map(row => {
-      return `${row.name},${row.usage},${row.hours}`;
+      const usage = formatNumberID(row.usage);
+      const hours = formatNumberID(row.hours);
+      const avgHours = (row.usage > 0) ? (row.hours / row.usage).toFixed(1) : "0";
+      const percentage = totalSessions > 0 ? Math.round((row.usage / totalSessions) * 100) : 0;
+      
+      return `"${row.name}",${usage},${hours},${avgHours},${percentage}%`;
     });
     
-    const byHourHeader = '\n\nJam,Jumlah Penggunaan\n';
+    // Header CSV untuk laporan penggunaan berdasarkan jam
+    const byHourHeader = '\n\nJam,Jumlah Sesi\n';
+    
+    // Baris data untuk laporan penggunaan berdasarkan jam
     const byHourRows = usageData.byHour.map(row => {
-      return `${row.hour},${row.count}`;
+      return `"${row.hour}",${formatNumberID(row.count)}`;
     });
     
-    const csvContent = `${byPSHeader}${byPSRows.join('\n')}${byHourHeader}${byHourRows.join('\n')}`;
+    // Tambahkan ringkasan total
+    const summary = `\n\nRingkasan\n` +
+      `Total Sesi,${formatNumberID(totalSessions)}\n` +
+      `Total Jam,${formatNumberID(totalHours)}\n` +
+      `Rata-rata Jam per Sesi,${totalSessions > 0 ? (totalHours / totalSessions).toFixed(1) : "0"}\n`;
     
+    // Gabungkan semua bagian CSV
+    const csvContent = `${byPSHeader}${byPSRows.join('\n')}${byHourHeader}${byHourRows.join('\n')}${summary}`;
+    
+    // Buat blob dan inisiasi download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `usage_report_${dateRange.startDate}_to_${dateRange.endDate}.csv`);
+    
+    // Format nama file dengan tanggal range
+    const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
+    const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
+    link.setAttribute('download', `laporan_penggunaan_${startDateFormatted}_sampai_${endDateFormatted}.csv`);
+    
+    // Initiate download
+    document.body.appendChild(link); // Diperlukan oleh beberapa browser
     link.click();
+    document.body.removeChild(link); // Bersihkan referensi
+    
+    toast.success('Laporan penggunaan berhasil diunduh');
   };
 
   const RADIAN = Math.PI / 180;
@@ -138,7 +192,7 @@ const RentalUsageReport = () => {
           className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
         >
           <Download size={16} className="mr-1" />
-          Export CSV
+          Unduh CSV
         </button>
       </div>
       
@@ -174,7 +228,8 @@ const RentalUsageReport = () => {
       </div>
       
       {error && (
-        <div className="bg-red-900 bg-opacity-20 p-4 rounded-lg border border-red-500 mb-6">
+        <div className="bg-red-900 bg-opacity-20 p-4 rounded-lg border border-red-500 mb-6 flex items-start">
+          <AlertCircle size={20} className="text-red-500 mr-2 mt-0.5" />
           <p className="text-red-400">{error}</p>
         </div>
       )}
@@ -235,17 +290,23 @@ const RentalUsageReport = () => {
           <div className="text-sm text-gray-400 mb-1">Total Jam</div>
           <div className="text-xl font-bold">{totalHours} jam</div>
           <div className="text-xs text-gray-500 mt-1">
-            Rata-rata {(totalHours / totalSessions).toFixed(1)} jam per sesi
+            Rata-rata {totalSessions ? (totalHours / totalSessions).toFixed(1) : 0} jam per sesi
           </div>
         </div>
         
         <div className="bg-gray-700 rounded-lg p-4">
           <div className="text-sm text-gray-400 mb-1">Penggunaan per Hari</div>
           <div className="text-xl font-bold">
-            {Math.round(totalSessions / ((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24) + 1))} sesi
+            {(() => {
+              const dayDiff = Math.max(1, Math.floor((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24)) + 1);
+              return Math.round(totalSessions / dayDiff);
+            })() || 0} sesi
           </div>
           <div className="text-xs text-gray-500 mt-1">
-            {Math.round(totalHours / ((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24) + 1))} jam per hari
+            {(() => {
+              const dayDiff = Math.max(1, Math.floor((new Date(dateRange.endDate) - new Date(dateRange.startDate)) / (1000 * 60 * 60 * 24)) + 1);
+              return Math.round(totalHours / dayDiff);
+            })() || 0} jam per hari
           </div>
         </div>
       </div>
@@ -274,8 +335,8 @@ const RentalUsageReport = () => {
                   </td>
                   <td className="py-3 px-4 text-right">{item.usage} sesi</td>
                   <td className="py-3 px-4 text-right">{item.hours} jam</td>
-                  <td className="py-3 px-4 text-right">{(item.hours / item.usage).toFixed(1)} jam</td>
-                  <td className="py-3 px-4 text-right">{Math.round((item.usage / totalSessions) * 100)}%</td>
+                  <td className="py-3 px-4 text-right">{item.usage ? (item.hours / item.usage).toFixed(1) : 0} jam</td>
+                  <td className="py-3 px-4 text-right">{totalSessions ? Math.round((item.usage / totalSessions) * 100) : 0}%</td>
                 </tr>
               ))}
             </tbody>

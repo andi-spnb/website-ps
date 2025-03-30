@@ -12,6 +12,8 @@ const foodRoutes = require('./routes/foodRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const memberRoutes = require('./routes/memberRoutes');
 const staffRoutes = require('./routes/staffRoutes');
+const playboxRoutes = require('./routes/playboxRoutes');
+const { sequelize, Playbox, PlayboxReservation, PlayboxGame } = require('./models')
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -30,6 +32,7 @@ app.use('/api/food', foodRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/staff', staffRoutes);
+app.use('/api/playbox', playboxRoutes);
 
 // Hapus kode berikut pada lingkungan development
 // // Static files
@@ -49,5 +52,14 @@ app.use((err, req, res, next) => {
 app.listen(PORT, () => {
   console.log(`Server berjalan pada port ${PORT}`);
 });
+const syncDatabase = async () => {
+  try {
+    await sequelize.sync({ alter: true }); // Menggunakan 'alter' untuk mode pengembangan
+    console.log('Database synchronized successfully');
+  } catch (error) {
+    console.error('Error synchronizing database:', error);
+  }
+};
 
+syncDatabase();
 module.exports = app;

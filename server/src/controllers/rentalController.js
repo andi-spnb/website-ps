@@ -108,6 +108,9 @@ exports.startRental = async (req, res) => {
       total_amount = total_amount * 0.9; // 10% discount
     } else if (duration_hours >= 3) {
       total_amount = total_amount * 0.95; // 5% discount
+    } if (!duration_hours || duration_hours <= 0 || duration_hours > 24) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Durasi tidak valid. Maksimal 24 jam' });
     }
     
     // Create rental session
@@ -182,8 +185,11 @@ exports.endRental = async (req, res) => {
       status: 'Completed'
     }, { transaction });
     
-    // Update device status
-    await session.Device.update({ status: 'Available' }, { transaction });
+    // Update device status - selalu ubah ke Available
+    await Device.update(
+      { status: 'Available' },
+      { where: { device_id: session.device_id }, transaction }
+    );
     
     await transaction.commit();
     
@@ -344,6 +350,62 @@ exports.getRentalDetails = async (req, res) => {
     res.json(session);
   } catch (error) {
     console.error('Error fetching rental details:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Check and end expired sessions
+exports.checkExpiredSessions = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    const now = new Date();
+    
+    // Find all active sessions that have passed their end time
+    const expiredSessions = await RentalSession.findAll({
+      where: {
+        status: 'Active',
+        end_time: {
+          [Op.lt]: now
+        }
+      },
+      include: [{ model: Device }],
+      transaction
+    });
+    
+    if (expiredSessions.length === 0) {
+      await transaction.rollback();
+      return res.json({ message: 'Tidak ada sesi yang kedaluwarsa' });
+    }
+    
+    // End all expired sessions
+    const updated = [];
+    for (const session of expiredSessions) {
+      // Update session
+      await session.update({
+        actual_end_time: now,
+        status: 'Completed'
+      }, { transaction });
+      
+      // Update device status
+      await session.Device.update({ status: 'Available' }, { transaction });
+      
+      updated.push({
+        session_id: session.session_id,
+        device_id: session.device_id,
+        device_name: session.Device.device_name
+      });
+    }
+    
+    await transaction.commit();
+    
+    res.json({
+      message: `${updated.length} sesi yang kedaluwarsa telah diakhiri`,
+      sessions: updated
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error('Error checking expired sessions:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

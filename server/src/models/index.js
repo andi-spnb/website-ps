@@ -11,6 +11,11 @@ const Shift = require('./Shift');
 const Transaction = require('./Transaction');
 const Notification = require('./Notification');
 
+// Playbox models
+const Playbox = require('./Playbox');
+const PlayboxReservation = require('./PlayboxReservation');
+const PlayboxGame = require('./PlayboxGame');
+
 // Definisikan relasi antar model
 Device.hasMany(RentalSession, { foreignKey: 'device_id' });
 RentalSession.belongsTo(Device, { foreignKey: 'device_id' });
@@ -39,6 +44,21 @@ Shift.belongsTo(Staff, { foreignKey: 'staff_id' });
 Shift.hasMany(Transaction, { foreignKey: 'shift_id' });
 Transaction.belongsTo(Shift, { foreignKey: 'shift_id' });
 
+// Relasi Playbox
+Playbox.hasMany(PlayboxReservation, { foreignKey: 'playbox_id' });
+PlayboxReservation.belongsTo(Playbox, { foreignKey: 'playbox_id' });
+
+Playbox.hasMany(PlayboxGame, { foreignKey: 'playbox_id' });
+PlayboxGame.belongsTo(Playbox, { foreignKey: 'playbox_id' });
+
+Staff.hasMany(PlayboxReservation, { foreignKey: 'staff_id' });
+PlayboxReservation.belongsTo(Staff, { foreignKey: 'staff_id' });
+
+Transaction.belongsTo(RentalSession, { 
+  foreignKey: 'reference_id', 
+  constraints: false,
+  as: 'RentalReference'
+});
 module.exports = {
   sequelize,
   Device,
@@ -51,5 +71,9 @@ module.exports = {
   OrderItem,
   Shift,
   Transaction,
-  Notification
+  Notification,
+  // Playbox exports
+  Playbox,
+  PlayboxReservation,
+  PlayboxGame
 };

@@ -3,6 +3,9 @@ const router = express.Router();
 const rentalController = require('../controllers/rentalController');
 const auth = require('../middleware/auth');
 
+// Check and end expired sessions
+router.post('/check-expired', auth, rentalController.checkExpiredSessions);
+
 // Get active rental sessions
 router.get('/active', auth, rentalController.getActiveRentals);
 

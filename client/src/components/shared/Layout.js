@@ -13,34 +13,24 @@ import {
   FileText, 
   Clock, 
   User,
-  UserPlus,
-  LogOut
+  LogOut,
+  BoxSelect
 } from 'lucide-react';
 
 const Layout = () => {
-  // Tambahkan penanganan error jika useAuth() undefined
-  const auth = useAuth() || {};
-  const { currentUser, logout } = auth;
-  
-  // Tambahkan penanganan error jika useShift() undefined
-  const shift = useShift() || {};
-  const { currentShift } = shift;
-  
+  const { currentUser, logout } = useAuth();
+  const { currentShift } = useShift();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    if (logout) {
-      logout();
-      navigate('/login');
-    }
+    logout();
+    navigate('/login');
   };
 
   const toggleSidebar = () => {
     setSidebarOpen(!sidebarOpen);
   };
-
-  const isAdmin = currentUser?.role === 'Admin' || currentUser?.role === 'Owner';
 
   return (
     <div className="flex h-screen bg-gray-900 text-white">
@@ -67,8 +57,8 @@ const Layout = () => {
           <div className="mb-6">
             <div className="text-gray-400 text-sm mb-2">Staff Info</div>
             <div className="bg-gray-700 rounded-md p-3">
-              <div className="font-medium">{currentUser?.name || 'User'}</div>
-              <div className="text-sm text-gray-400">{currentUser?.role || 'Role'}</div>
+              <div className="font-medium">{currentUser?.name}</div>
+              <div className="text-sm text-gray-400">{currentUser?.role}</div>
               {currentShift ? (
                 <div className="mt-2 text-xs text-green-400 flex items-center">
                   <Clock size={12} className="mr-1" />
@@ -125,6 +115,19 @@ const Layout = () => {
               </NavLink>
               
               <NavLink
+                to="/admin-playbox"
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2 rounded-md ${
+                    isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                  }`
+                }
+                onClick={() => setSidebarOpen(false)}
+              >
+                <BoxSelect size={18} className="mr-3" />
+                <span>Playbox</span>
+              </NavLink>
+              
+              <NavLink
                 to="/members"
                 className={({ isActive }) =>
                   `flex items-center px-3 py-2 rounded-md ${
@@ -150,34 +153,19 @@ const Layout = () => {
                 <span>Makanan & Minuman</span>
               </NavLink>
               
-              {isAdmin && (
-                <>
-                  <NavLink
-                    to="/reports"
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2 rounded-md ${
-                        isActive ? "bg-blue-600" : "hover:bg-gray-700"
-                      }`
-                    }
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <FileText size={18} className="mr-3" />
-                    <span>Laporan</span>
-                  </NavLink>
-                  
-                  <NavLink
-                    to="/staff"
-                    className={({ isActive }) =>
-                      `flex items-center px-3 py-2 rounded-md ${
-                        isActive ? "bg-blue-600" : "hover:bg-gray-700"
-                      }`
-                    }
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    <UserPlus size={18} className="mr-3" />
-                    <span>Karyawan</span>
-                  </NavLink>
-                </>
+              {(currentUser?.role === 'Admin' || currentUser?.role === 'Owner') && (
+                <NavLink
+                  to="/reports"
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 rounded-md ${
+                      isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <FileText size={18} className="mr-3" />
+                  <span>Laporan</span>
+                </NavLink>
               )}
               
               <NavLink
@@ -231,6 +219,16 @@ const Layout = () => {
             <Menu size={24} />
           </button>
           <h2 className="text-xl font-semibold">Kenzie Gaming</h2>
+          <div className="flex-1"></div>
+          <a
+            href="/playbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm flex items-center"
+          >
+            <BoxSelect size={14} className="mr-1" />
+            <span>Lihat Playbox</span>
+          </a>
         </header>
         
         {/* Content */}

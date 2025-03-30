@@ -30,46 +30,61 @@ const ActiveSessionsCard = () => {
     fetchActiveSessions();
   }, []);
 
-  // Update remaining time every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTimer(prev => prev + 1);
-      
-      // Update remaining time calculations
-      setActiveSessions(prevSessions => 
-        prevSessions.map(session => {
-          const now = new Date();
-          const endTime = new Date(session.end_time);
-          const remainingMs = endTime - now;
-          
-          let remaining = {
-            hours: 0,
-            minutes: 0,
-            seconds: 0,
-            total_seconds: 0,
-            is_overdue: false
-          };
-          
-          if (remainingMs > 0) {
-            remaining.hours = Math.floor(remainingMs / (1000 * 60 * 60));
-            remaining.minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
-            remaining.seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
-            remaining.total_seconds = Math.floor(remainingMs / 1000);
-          } else {
-            remaining.is_overdue = true;
-          }
-          
-          return {
-            ...session,
-            remaining
-          };
-        })
-      );
-    }, 1000);
+// Tambahkan di bagian useEffect untuk timer
+useEffect(() => {
+  const interval = setInterval(() => {
+    setTimer(prev => prev + 1);
     
-    return () => clearInterval(interval);
-  }, []);
+    // Update remaining time calculations
+    setActiveSessions(prevSessions => 
+      prevSessions.map(session => {
+        const now = new Date();
+        const endTime = new Date(session.end_time);
+        const remainingMs = endTime - now;
+        
+        let remaining = {
+          hours: 0,
+          minutes: 0,
+          seconds: 0,
+          total_seconds: 0,
+          is_overdue: false
+        };
+        
+        if (remainingMs > 0) {
+          remaining.hours = Math.floor(remainingMs / (1000 * 60 * 60));
+          remaining.minutes = Math.floor((remainingMs % (1000 * 60 * 60)) / (1000 * 60));
+          remaining.seconds = Math.floor((remainingMs % (1000 * 60)) / 1000);
+          remaining.total_seconds = Math.floor(remainingMs / 1000);
+        } else {
+          remaining.is_overdue = true;
+        }
+        
+        return {
+          ...session,
+          remaining
+        };
+      })
+    );
+    
+    // Cek sesi yang kedaluwarsa setiap 30 detik
+    if (timer % 30 === 0) {
+      checkExpiredSessions();
+    }
+  }, 1000);
+  
+  return () => clearInterval(interval);
+}, []);
 
+// Tambahkan fungsi untuk memeriksa sesi kedaluwarsa
+const checkExpiredSessions = async () => {
+  try {
+    await api.post('/rentals/check-expired');
+    // Refresh active sessions after checking
+    fetchActiveSessions();
+  } catch (err) {
+    console.error('Error checking expired sessions:', err);
+  }
+};
   if (loading) {
     return (
       <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700 animate-pulse">

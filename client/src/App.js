@@ -13,7 +13,7 @@ import PrivateRoute from './components/shared/PrivateRoute';
 import AdminRoute from './components/shared/AdminRoute';
 import Layout from './components/shared/Layout';
 
-// Pages
+// Admin Pages
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import POSPage from './pages/POSPage';
@@ -23,8 +23,13 @@ import FoodItemsPage from './pages/FoodItemsPage';
 import ReportsPage from './pages/ReportsPage';
 import ShiftPage from './pages/ShiftPage';
 import ProfilePage from './pages/ProfilePage';
-import StaffPage from './pages/StaffPage'; // Import halaman karyawan
 import NotFoundPage from './pages/NotFoundPage';
+
+// Playbox Pages
+import PlayboxLandingPage from './pages/playbox/PlayboxLandingPage';
+import PlayboxReservationPage from './pages/playbox/PlayboxReservationPage';
+import PlayboxTrackingPage from './pages/playbox/PlayboxTrackingPage';
+import AdminPlayboxPage from './pages/playbox/AdminPlayboxPage';
 
 function App() {
   return (
@@ -34,8 +39,16 @@ function App() {
           <Router>
             <ToastContainer position="top-right" autoClose={3000} />
             <Routes>
+              {/* Public Playbox Routes */}
+              <Route path="/playbox" element={<PlayboxLandingPage />} />
+              <Route path="/playbox/reservation" element={<PlayboxReservationPage />} />
+              <Route path="/playbox/tracking/:bookingCode" element={<PlayboxTrackingPage />} />
+              <Route path="/playbox/tracking" element={<PlayboxTrackingPage />} />
+
+              {/* Authentication Routes */}
               <Route path="/login" element={<Login />} />
               
+              {/* Protected Admin Routes */}
               <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
@@ -43,10 +56,10 @@ function App() {
                 <Route path="devices" element={<DevicesPage />} />
                 <Route path="members" element={<MembersPage />} />
                 <Route path="food" element={<FoodItemsPage />} />
-                <Route path="staff" element={<AdminRoute><StaffPage /></AdminRoute>} /> {/* Tambahkan rute staff */}
                 <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
                 <Route path="shift" element={<ShiftPage />} />
                 <Route path="profile" element={<ProfilePage />} />
+                <Route path="admin-playbox" element={<AdminRoute><AdminPlayboxPage /></AdminRoute>} />
               </Route>
               
               <Route path="*" element={<NotFoundPage />} />

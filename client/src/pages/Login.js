@@ -49,8 +49,12 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
-          <div className="w-20 h-20 bg-blue-600 rounded-full mx-auto flex items-center justify-center">
-            <span className="text-3xl font-bold">K</span>
+          <div className="w-20 h-20 rounded-full mx-auto flex items-center justify-center">
+              <img 
+                src="/logo192.png" 
+                alt="Kenzie Gaming Logo" 
+                className="w-full h-full object-cover"
+              />
           </div>
           <h1 className="mt-4 text-3xl font-bold text-white">Kenzie Gaming</h1>
           <p className="mt-2 text-gray-400">Sistem Rental PlayStation</p>

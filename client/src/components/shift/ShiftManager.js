@@ -298,20 +298,22 @@ const ShiftManager = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {shiftHistory.map(shift => (
-                  <tr key={shift.shift_id} className="hover:bg-gray-750">
-                    <td className="py-3 px-4 font-medium">{shift.staff?.name || 'Unknown'}</td>
-                    <td className="py-3 px-4">{formatDate(shift.start_time)}</td>
-                    <td className="py-3 px-4">
-                      {formatTime(shift.start_time)} - {shift.end_time ? formatTime(shift.end_time) : 'Aktif'}
-                    </td>
-                    <td className="py-3 px-4 text-right">{formatCurrency(shift.opening_balance)}</td>
-                    <td className="py-3 px-4 text-right">{formatCurrency(shift.total_sales || 0)}</td>
-                    <td className="py-3 px-4 text-right">
-                      {shift.closing_balance ? formatCurrency(shift.closing_balance) : '-'}
-                    </td>
-                  </tr>
-                ))}
+              {shiftHistory.map(shift => (
+  <tr key={shift.shift_id} className="hover:bg-gray-750">
+    <td className="py-3 px-4 font-medium">
+      {shift.Staff ? shift.Staff.name : 'Unknown'}
+    </td>
+    <td className="py-3 px-4">{formatDate(shift.start_time)}</td>
+    <td className="py-3 px-4">
+      {formatTime(shift.start_time)} - {shift.end_time ? formatTime(shift.end_time) : 'Aktif'}
+    </td>
+    <td className="py-3 px-4 text-right">{formatCurrency(shift.opening_balance)}</td>
+    <td className="py-3 px-4 text-right">{formatCurrency(shift.total_sales || 0)}</td>
+    <td className="py-3 px-4 text-right">
+      {shift.closing_balance ? formatCurrency(shift.closing_balance) : '-'}
+    </td>
+  </tr>
+))}
               </tbody>
             </table>
           </div>
