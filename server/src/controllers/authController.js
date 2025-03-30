@@ -27,7 +27,7 @@ exports.login = async (req, res) => {
         username: staff.username,
         role: staff.role
       },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || 'kenzie-gaming-secret-key',
       { expiresIn: '12h' }
     );
 
@@ -46,7 +46,7 @@ exports.login = async (req, res) => {
   }
 };
 
-// Get current user info
+// Get current user info - Tambahkan fungsi ini
 exports.getCurrentUser = async (req, res) => {
   try {
     const staff = await Staff.findByPk(req.userData.staff_id, {
@@ -119,6 +119,46 @@ exports.changePassword = async (req, res) => {
     res.json({ message: 'Password berhasil diubah' });
   } catch (error) {
     console.error('Change password error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+exports.registerPublic = async (req, res) => {
+  try {
+    const { name, username, password, role } = req.body;
+    
+    // Check if username already exists
+    const existingStaff = await Staff.findOne({ where: { username } });
+    if (existingStaff) {
+      return res.status(400).json({ message: 'Username sudah digunakan' });
+    }
+    
+    // For public registration, limit role choices
+    let safeRole = 'Cashier'; // Default to Cashier
+    
+    if (role === 'Admin') {
+      // Admin accounts are pending approval
+      safeRole = 'Cashier'; // Still create as Cashier, admin can upgrade later
+    }
+    
+    // Create new staff
+    const newStaff = await Staff.create({
+      name,
+      role: safeRole,
+      username,
+      password_hash: password, // Will be hashed by the model hook
+      status: 'Active' // Auto-activate Cashier accounts, Admin would need approval
+    });
+
+    res.status(201).json({
+      message: 'Pendaftaran berhasil',
+      staff: {
+        staff_id: newStaff.staff_id,
+        name: newStaff.name,
+        role: newStaff.role
+      }
+    });
+  } catch (error) {
+    console.error('Register error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

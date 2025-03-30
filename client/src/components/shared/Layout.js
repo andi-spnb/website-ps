@@ -13,7 +13,8 @@ import {
   FileText, 
   Clock, 
   User,
-  LogOut
+  LogOut,
+  BoxSelect
 } from 'lucide-react';
 
 const Layout = () => {
@@ -114,6 +115,19 @@ const Layout = () => {
               </NavLink>
               
               <NavLink
+                to="/admin-playbox"
+                className={({ isActive }) =>
+                  `flex items-center px-3 py-2 rounded-md ${
+                    isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                  }`
+                }
+                onClick={() => setSidebarOpen(false)}
+              >
+                <BoxSelect size={18} className="mr-3" />
+                <span>Playbox</span>
+              </NavLink>
+              
+              <NavLink
                 to="/members"
                 className={({ isActive }) =>
                   `flex items-center px-3 py-2 rounded-md ${
@@ -205,6 +219,16 @@ const Layout = () => {
             <Menu size={24} />
           </button>
           <h2 className="text-xl font-semibold">Kenzie Gaming</h2>
+          <div className="flex-1"></div>
+          <a
+            href="/playbox"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="px-3 py-1 rounded bg-blue-600 hover:bg-blue-700 text-sm flex items-center"
+          >
+            <BoxSelect size={14} className="mr-1" />
+            <span>Lihat Playbox</span>
+          </a>
         </header>
         
         {/* Content */}

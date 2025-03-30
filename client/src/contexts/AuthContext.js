@@ -17,11 +17,13 @@ export const AuthProvider = ({ children }) => {
       
       if (token) {
         try {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
           const response = await api.get('/auth/me');
           setCurrentUser(response.data.staff);
         } catch (error) {
           console.error('Failed to fetch user data:', error);
           localStorage.removeItem('token');
+          delete api.defaults.headers.common['Authorization'];
           setCurrentUser(null);
         }
       }
@@ -35,20 +37,28 @@ export const AuthProvider = ({ children }) => {
   const login = async (username, password) => {
     try {
       setError(null);
+      console.log("Attempting login:", username);
+      
       const response = await api.post('/auth/login', { username, password });
+      console.log("Login response:", response.data);
+      
       const { token, staff } = response.data;
       
       localStorage.setItem('token', token);
+      api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
       setCurrentUser(staff);
       return staff;
     } catch (error) {
-      setError(error.response?.data?.message || 'Login gagal');
+      console.error('Login error:', error);
+      const errorMsg = error.response?.data?.message || 'Login gagal';
+      setError(errorMsg);
       throw error;
     }
   };
 
   const logout = () => {
     localStorage.removeItem('token');
+    delete api.defaults.headers.common['Authorization'];
     setCurrentUser(null);
   };
 
@@ -71,5 +81,3 @@ export const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
-export default AuthContext;

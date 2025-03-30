@@ -8,21 +8,36 @@ const DeviceSelection = ({ onSelectDevice }) => {
   const [error, setError] = useState(null);
   const [selectedType, setSelectedType] = useState('all');
 
+  // Definisikan fungsi fetchDevices di dalam komponen
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/devices');
+      setDevices(response.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching devices:', err);
+      setError('Gagal memuat data perangkat');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchDevices = async () => {
+    // Tambahkan fungsi untuk memeriksa sesi kedaluwarsa saat komponen dimuat
+    const checkAndFetchDevices = async () => {
       try {
-        const response = await api.get('/devices');
-        setDevices(response.data);
-        setError(null);
+        // Cek sesi kedaluwarsa terlebih dahulu
+        await api.post('/rentals/check-expired');
+        // Kemudian ambil daftar perangkat yang sudah diperbarui
+        fetchDevices();
       } catch (err) {
-        console.error('Error fetching devices:', err);
-        setError('Gagal memuat data perangkat');
-      } finally {
-        setLoading(false);
+        console.error('Error in device initialization:', err);
+        fetchDevices(); // Tetap fetch devices jika check-expired gagal
       }
     };
 
-    fetchDevices();
+    checkAndFetchDevices();
   }, []);
 
   const getStatusColor = (status) => {

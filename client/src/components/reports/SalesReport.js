@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Calendar, Download, Filter } from 'lucide-react';
+import { toast } from 'react-toastify';
 import api from '../../services/api';
 
 const SalesReport = () => {
@@ -16,16 +17,37 @@ const SalesReport = () => {
   const fetchSalesData = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/reports/sales?startDate=${dateRange.startDate}&endDate=${dateRange.endDate}&groupBy=${groupBy}`);
-      setSalesData(response.data);
+      // Pastikan parameter dikirim dengan benar ke endpoint API
+      const response = await api.get(`/reports/sales`, {
+        params: {
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          groupBy: groupBy
+        }
+      });
+      
+      // Verifikasi format data yang diterima
+      console.log('Data penjualan diterima:', response.data);
+      
+      // Transformasi data jika perlu
+      const formattedData = response.data.map(item => ({
+        ...item,
+        // Pastikan label sesuai dengan format yang diharapkan oleh grafik
+        label: groupBy === 'day' 
+          ? new Date(item.date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })
+          : new Date(item.date + '-01').toLocaleDateString('id-ID', { month: 'short', year: 'numeric' }),
+      }));
+      
+      setSalesData(formattedData);
       setError(null);
     } catch (err) {
       console.error('Error fetching sales data:', err);
-      setError('Gagal memuat data penjualan');
+      setError('Gagal memuat data penjualan: ' + (err.response?.data?.message || err.message));
+      toast.error('Gagal memuat data penjualan');
       
-      // Mock data for demo
+      // Data dummy untuk pengembangan jika API gagal
       if (groupBy === 'day') {
-        // Daily data for the last 7 days
+        // Data harian untuk 7 hari terakhir
         const mockData = [];
         const endDate = new Date(dateRange.endDate);
         for (let i = 6; i >= 0; i--) {
@@ -40,7 +62,7 @@ const SalesReport = () => {
         }
         setSalesData(mockData);
       } else if (groupBy === 'month') {
-        // Monthly data for the last 6 months
+        // Data bulanan untuk 6 bulan terakhir
         const mockData = [];
         const currentMonth = new Date().getMonth();
         for (let i = 5; i >= 0; i--) {
@@ -97,19 +119,48 @@ const SalesReport = () => {
   };
 
   const exportToCSV = () => {
+    // Format angka dalam format Rupiah (tanpa simbol Rp)
+    const formatNumberID = (num) => {
+      return num.toLocaleString('id-ID', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      });
+    };
+
+    // Header dengan nama kolom sesuai bahasa Indonesia
     const csvHeader = 'Tanggal,Pendapatan Rental,Pendapatan F&B,Total\n';
+    
+    // Baris data dengan format yang sudah diperbaiki
     const csvRows = salesData.map(row => {
-      return `${row.label},${row.rentalSales},${row.foodSales},${row.rentalSales + row.foodSales}`;
+      const date = row.label;
+      const rentalSales = formatNumberID(row.rentalSales);
+      const foodSales = formatNumberID(row.foodSales);
+      const total = formatNumberID(row.rentalSales + row.foodSales);
+      
+      // Kembalikan baris CSV yang terformat
+      return `"${date}",${rentalSales},${foodSales},${total}`;
     });
     
+    // Gabungkan header dan baris data
     const csvContent = `${csvHeader}${csvRows.join('\n')}`;
     
+    // Buat blob dan inisiasi download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `sales_report_${dateRange.startDate}_to_${dateRange.endDate}.csv`);
+    
+    // Format nama file dengan tanggal range
+    const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
+    const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
+    link.setAttribute('download', `laporan_penjualan_${startDateFormatted}_sampai_${endDateFormatted}.csv`);
+    
+    // Initiate download
+    document.body.appendChild(link); // Diperlukan oleh beberapa browser
     link.click();
+    document.body.removeChild(link); // Bersihkan referensi
+    
+    toast.success('Laporan berhasil diunduh');
   };
 
   if (loading) {
@@ -136,7 +187,7 @@ const SalesReport = () => {
           className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
         >
           <Download size={16} className="mr-1" />
-          Export CSV
+          Unduh CSV
         </button>
       </div>
       
@@ -194,49 +245,63 @@ const SalesReport = () => {
         </div>
       )}
       
-      <div className="h-80 mb-6">
-        <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={salesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-            <XAxis dataKey="label" stroke="#9CA3AF" />
-            <YAxis stroke="#9CA3AF" tickFormatter={(value) => `Rp${(value / 1000000).toFixed(1)}jt`} />
-            <Tooltip
-              formatter={(value) => [`${formatCurrency(value)}`, undefined]}
-              labelFormatter={(label) => `Tanggal: ${label}`}
-              contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
-            />
-            <Legend />
-            <Bar dataKey="rentalSales" name="Pendapatan Rental" fill="#3B82F6" />
-            <Bar dataKey="foodSales" name="Pendapatan F&B" fill="#10B981" />
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400 mb-1">Total Pendapatan</div>
-          <div className="text-xl font-bold">{formatCurrency(totalRevenue)}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            {dateRange.startDate} s/d {dateRange.endDate}
-          </div>
+      {salesData.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12">
+          <p className="text-gray-400 mb-4">Tidak ada data penjualan dalam rentang waktu ini</p>
+          <button 
+            onClick={fetchSalesData} 
+            className="px-4 py-2 bg-blue-600 rounded-lg hover:bg-blue-700"
+          >
+            Muat Ulang Data
+          </button>
         </div>
-        
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400 mb-1">Pendapatan Rental</div>
-          <div className="text-xl font-bold">{formatCurrency(totalRentalSales)}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            {Math.round((totalRentalSales / totalRevenue) * 100)}% dari total pendapatan
+      ) : (
+        <>
+          <div className="h-80 mb-6">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={salesData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+                <XAxis dataKey="label" stroke="#9CA3AF" />
+                <YAxis stroke="#9CA3AF" tickFormatter={(value) => `Rp${(value / 1000000).toFixed(1)}jt`} />
+                <Tooltip
+                  formatter={(value) => [`${formatCurrency(value)}`, undefined]}
+                  labelFormatter={(label) => `Tanggal: ${label}`}
+                  contentStyle={{ backgroundColor: '#1F2937', border: '1px solid #374151', borderRadius: '0.375rem' }}
+                />
+                <Legend />
+                <Bar dataKey="rentalSales" name="Pendapatan Rental" fill="#3B82F6" />
+                <Bar dataKey="foodSales" name="Pendapatan F&B" fill="#10B981" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
-        </div>
-        
-        <div className="bg-gray-700 rounded-lg p-4">
-          <div className="text-sm text-gray-400 mb-1">Pendapatan F&B</div>
-          <div className="text-xl font-bold">{formatCurrency(totalFoodSales)}</div>
-          <div className="text-xs text-gray-500 mt-1">
-            {Math.round((totalFoodSales / totalRevenue) * 100)}% dari total pendapatan
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className="text-sm text-gray-400 mb-1">Total Pendapatan</div>
+              <div className="text-xl font-bold">{formatCurrency(totalRevenue)}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {dateRange.startDate} s/d {dateRange.endDate}
+              </div>
+            </div>
+            
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className="text-sm text-gray-400 mb-1">Pendapatan Rental</div>
+              <div className="text-xl font-bold">{formatCurrency(totalRentalSales)}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {totalRevenue ? Math.round((totalRentalSales / totalRevenue) * 100) : 0}% dari total pendapatan
+              </div>
+            </div>
+            
+            <div className="bg-gray-700 rounded-lg p-4">
+              <div className="text-sm text-gray-400 mb-1">Pendapatan F&B</div>
+              <div className="text-xl font-bold">{formatCurrency(totalFoodSales)}</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {totalRevenue ? Math.round((totalFoodSales / totalRevenue) * 100) : 0}% dari total pendapatan
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        </>
+      )}
     </div>
   );
 };

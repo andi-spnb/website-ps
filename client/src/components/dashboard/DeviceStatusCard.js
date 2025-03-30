@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor } from 'lucide-react';
+import { Monitor, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const DeviceStatusCard = () => {
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
   
   // Stats
   const [stats, setStats] = useState({
@@ -18,40 +20,43 @@ const DeviceStatusCard = () => {
     ps5Count: 0
   });
 
-  useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        const response = await api.get('/devices');
-        setDevices(response.data);
-        
-        // Calculate stats
-        const total = response.data.length;
-        const available = response.data.filter(d => d.status === 'Available').length;
-        const inUse = response.data.filter(d => d.status === 'In Use').length;
-        const maintenance = response.data.filter(d => d.status === 'Maintenance').length;
-        const ps3Count = response.data.filter(d => d.device_type === 'PS3').length;
-        const ps4Count = response.data.filter(d => d.device_type === 'PS4').length;
-        const ps5Count = response.data.filter(d => d.device_type === 'PS5').length;
-        
-        setStats({
-          total,
-          available,
-          inUse,
-          maintenance,
-          ps3Count,
-          ps4Count,
-          ps5Count
-        });
-        
-        setError(null);
-      } catch (err) {
-        console.error('Error fetching devices:', err);
-        setError('Gagal memuat data perangkat');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchDevices = async () => {
+    try {
+      setRefreshing(true);
+      const response = await api.get('/devices');
+      const deviceData = response.data;
+      setDevices(deviceData);
+      
+      // Calculate stats
+      const total = deviceData.length;
+      const available = deviceData.filter(d => d.status === 'Available').length;
+      const inUse = deviceData.filter(d => d.status === 'In Use').length;
+      const maintenance = deviceData.filter(d => d.status === 'Maintenance').length;
+      const ps3Count = deviceData.filter(d => d.device_type === 'PS3').length;
+      const ps4Count = deviceData.filter(d => d.device_type === 'PS4').length;
+      const ps5Count = deviceData.filter(d => d.device_type === 'PS5').length;
+      
+      setStats({
+        total,
+        available,
+        inUse,
+        maintenance,
+        ps3Count,
+        ps4Count,
+        ps5Count
+      });
+      
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching devices:', err);
+      setError('Gagal memuat data perangkat. Silakan coba lagi.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  useEffect(() => {
     fetchDevices();
   }, []);
 
@@ -69,20 +74,34 @@ const DeviceStatusCard = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700">
-        <div className="text-red-500">{error}</div>
-      </div>
-    );
-  }
-
   return (
     <div className="bg-gray-800 rounded-lg p-4 shadow border border-gray-700">
-      <h3 className="text-lg font-semibold flex items-center mb-4">
-        <Monitor className="mr-2" size={20} />
-        Status PlayStation
-      </h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold flex items-center">
+          <Monitor className="mr-2" size={20} />
+          Status PlayStation
+        </h3>
+        <button 
+          onClick={fetchDevices} 
+          disabled={refreshing}
+          className="p-1 rounded-full hover:bg-gray-700"
+          title="Refresh"
+        >
+          <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+        </button>
+      </div>
+      
+      {error && (
+        <div className="mb-4 p-3 bg-red-900 bg-opacity-50 border border-red-800 rounded-lg text-sm text-red-200">
+          {error}
+          <button 
+            onClick={fetchDevices}
+            className="ml-2 underline"
+          >
+            Coba lagi
+          </button>
+        </div>
+      )}
       
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4 mb-4">
         <div className="bg-gray-700 rounded-lg p-3 border border-blue-500">

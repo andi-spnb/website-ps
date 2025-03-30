@@ -12,26 +12,34 @@ export const ShiftProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const checkActiveShift = async () => {
-      if (!currentUser) {
-        setLoading(false);
-        return;
-      }
-      
-      try {
-        setLoading(true);
-        const response = await api.get('/shifts/active');
-        setCurrentShift(response.data.shift || null);
-      } catch (error) {
-        console.error('Failed to fetch active shift:', error);
-        setError(error.response?.data?.message || 'Gagal memuat data shift');
-      } finally {
-        setLoading(false);
-      }
-    };
+  const checkActiveShift = async () => {
+    if (!currentUser) {
+      setCurrentShift(null);
+      setLoading(false);
+      return;
+    }
+    
+    try {
+      setLoading(true);
+      const response = await api.get('/shifts/active');
+      setCurrentShift(response.data.shift || null);
+      setError(null);
+    } catch (error) {
+      console.error('Failed to fetch active shift:', error);
+      setError(error.response?.data?.message || 'Gagal memuat data shift');
+      setCurrentShift(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    checkActiveShift();
+  useEffect(() => {
+    if (currentUser) {
+      checkActiveShift();
+    } else {
+      setCurrentShift(null);
+      setLoading(false);
+    }
   }, [currentUser]);
 
   const startShift = async (openingBalance) => {
@@ -68,7 +76,8 @@ export const ShiftProvider = ({ children }) => {
     loading,
     error,
     startShift,
-    endShift
+    endShift,
+    checkActiveShift // Export this function to allow manual refresh
   };
 
   return (
@@ -77,5 +86,3 @@ export const ShiftProvider = ({ children }) => {
     </ShiftContext.Provider>
   );
 };
-
-export default ShiftContext;

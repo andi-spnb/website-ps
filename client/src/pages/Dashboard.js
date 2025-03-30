@@ -12,16 +12,33 @@ import RecentTransactionsCard from '../components/dashboard/RecentTransactionsCa
 
 const Dashboard = () => {
   const { currentUser } = useAuth();
-  const { currentShift, loading: shiftLoading } = useShift();
+  const { currentShift, loading: shiftLoading, checkActiveShift } = useShift();
   const navigate = useNavigate();
 
+  // Check for active shift when component mounts
   useEffect(() => {
-    // Check if shift is active
-    if (!shiftLoading && !currentShift) {
+    const checkShift = async () => {
+      try {
+        await checkActiveShift();
+      } catch (error) {
+        console.error("Error checking shift:", error);
+      }
+    };
+    
+    checkShift();
+  }, []);
+
+  // Show warning if no active shift
+  useEffect(() => {
+    if (!shiftLoading && !currentShift && currentUser) {
       toast.warning('Anda belum memulai shift. Silakan mulai shift terlebih dahulu.');
-      navigate('/shift');
     }
-  }, [currentShift, shiftLoading, navigate]);
+  }, [currentShift, shiftLoading, currentUser]);
+
+  // Redirect to shift page if needed
+  const handleStartShift = () => {
+    navigate('/shift');
+  };
 
   return (
     <div>
@@ -31,6 +48,18 @@ const Dashboard = () => {
           Selamat datang, {currentUser?.name}. Berikut adalah ringkasan operasional Kenzie Gaming.
         </p>
       </div>
+      
+      {!currentShift && !shiftLoading && (
+        <div className="mb-6 p-4 bg-yellow-900 bg-opacity-50 border border-yellow-700 rounded-lg">
+          <p className="text-yellow-200 mb-2">Anda belum memulai shift. Sesi kerja belum dimulai.</p>
+          <button 
+            onClick={handleStartShift}
+            className="px-4 py-2 bg-yellow-700 hover:bg-yellow-600 rounded-lg text-sm"
+          >
+            Mulai Shift Sekarang
+          </button>
+        </div>
+      )}
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2">

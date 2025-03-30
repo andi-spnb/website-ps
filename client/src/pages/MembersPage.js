@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import MembersList from '../components/members/MembersList';
-import MemberCard from '../components/members/MemberCard';
+import MembersList from '../components/member/MembersList';
+import MemberCard from '../components/member/MemberCard';
 import api from '../services/api';
 
 const MembersPage = () => {

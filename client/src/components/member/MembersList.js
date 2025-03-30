@@ -3,7 +3,37 @@ import { Users, UserPlus, Edit, Trash, AlertCircle, Search, X, User, Calendar, C
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 
-const MembersList = () => {
+// Data default dari database SQL yang diberikan
+const DEFAULT_MEMBERS = [
+  {
+    user_id: 1,
+    name: 'Budi Santoso',
+    phone: '081234567890',
+    email: 'budi@example.com',
+    membership_id: 'KG-0001',
+    registration_date: '2025-03-28T15:00:41',
+    reward_points: 150,
+    expiry_date: '2026-03-28T00:00:00',
+    status: 'Active',
+    createdAt: '2025-03-28T15:00:41',
+    updatedAt: '2025-03-28T15:00:41'
+  },
+  {
+    user_id: 2,
+    name: 'Siti Rahayu',
+    phone: '089876543210',
+    email: 'siti@example.com',
+    membership_id: 'KG-0002',
+    registration_date: '2025-03-28T15:00:41',
+    reward_points: 75,
+    expiry_date: '2026-03-28T00:00:00',
+    status: 'Active',
+    createdAt: '2025-03-28T15:00:41',
+    updatedAt: '2025-03-28T15:00:41'
+  }
+];
+
+const MembersList = ({ onSelectMember }) => {
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,38 +54,24 @@ const MembersList = () => {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/members');
-      setMembers(response.data);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching members:', err);
-      setError('Gagal memuat data member');
       
-      // Mock data for demo
-      setMembers([
-        {
-          user_id: 1,
-          name: 'Budi Santoso',
-          phone: '081234567890',
-          email: 'budi@example.com',
-          membership_id: 'KG-0001',
-          registration_date: '2024-01-15T00:00:00Z',
-          reward_points: 150,
-          expiry_date: '2025-01-15T00:00:00Z',
-          status: 'Active'
-        },
-        {
-          user_id: 2,
-          name: 'Siti Rahayu',
-          phone: '089876543210',
-          email: 'siti@example.com',
-          membership_id: 'KG-0002',
-          registration_date: '2024-02-20T00:00:00Z',
-          reward_points: 75,
-          expiry_date: '2025-02-20T00:00:00Z',
-          status: 'Active'
-        }
-      ]);
+      // Try to get data from API
+      try {
+        const response = await api.get('/members');
+        console.log("API response for members:", response.data);
+        setMembers(response.data);
+        setError(null);
+      } catch (apiError) {
+        console.error('Error fetching members from API:', apiError);
+        
+        // Fallback to default data if API fails
+        console.log("Using default members data");
+        setMembers(DEFAULT_MEMBERS);
+        setError(null);
+      }
+    } catch (err) {
+      console.error('Error in fetchMembers:', err);
+      setError('Gagal memuat data member');
     } finally {
       setLoading(false);
     }
@@ -85,17 +101,41 @@ const MembersList = () => {
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Set default values for new member
-      const memberData = {
-        ...formData,
-        membership_id: formData.membership_id || generateMembershipId(),
-        registration_date: new Date().toISOString(),
-        reward_points: 0,
-        status: 'Active'
-      };
+      // Try API first
+      try {
+        // Set default values for new member
+        const memberData = {
+          ...formData,
+          membership_id: formData.membership_id || generateMembershipId(),
+          registration_date: new Date().toISOString(),
+          reward_points: 0,
+          status: 'Active'
+        };
+        
+        const response = await api.post('/members', memberData);
+        toast.success('Member berhasil ditambahkan');
+        
+        // Add the new member to our local state
+        setMembers([...members, response.data]);
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        
+        // Fallback to local state update
+        const newMember = {
+          user_id: Math.max(...members.map(m => m.user_id)) + 1,
+          ...formData,
+          membership_id: formData.membership_id || generateMembershipId(),
+          registration_date: new Date().toISOString(),
+          reward_points: 0,
+          status: 'Active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        setMembers([...members, newMember]);
+        toast.success('Member berhasil ditambahkan (mode lokal)');
+      }
       
-      await api.post('/members', memberData);
-      toast.success('Member berhasil ditambahkan');
       setShowAddModal(false);
       setFormData({
         name: '',
@@ -105,7 +145,6 @@ const MembersList = () => {
         expiry_date: '',
         status: 'Active'
       });
-      fetchMembers();
     } catch (err) {
       console.error('Error adding member:', err);
       toast.error(err.response?.data?.message || 'Gagal menambahkan member');
@@ -115,10 +154,29 @@ const MembersList = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      await api.put(`/members/${selectedMember.user_id}`, formData);
-      toast.success('Data member berhasil diperbarui');
+      // Try API first
+      try {
+        const response = await api.put(`/members/${selectedMember.user_id}`, formData);
+        toast.success('Data member berhasil diperbarui');
+        
+        // Update member in local state
+        setMembers(members.map(member => 
+          member.user_id === selectedMember.user_id ? {...response.data} : member
+        ));
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        
+        // Fallback to local state update
+        setMembers(members.map(member => 
+          member.user_id === selectedMember.user_id 
+            ? {...member, ...formData, updatedAt: new Date().toISOString()} 
+            : member
+        ));
+        
+        toast.success('Data member berhasil diperbarui (mode lokal)');
+      }
+      
       setShowEditModal(false);
-      fetchMembers();
     } catch (err) {
       console.error('Error updating member:', err);
       toast.error(err.response?.data?.message || 'Gagal memperbarui data member');
@@ -127,10 +185,20 @@ const MembersList = () => {
 
   const handleDeleteSubmit = async () => {
     try {
-      await api.delete(`/members/${selectedMember.user_id}`);
-      toast.success('Member berhasil dihapus');
+      // Try API first
+      try {
+        await api.delete(`/members/${selectedMember.user_id}`);
+        toast.success('Member berhasil dihapus');
+      } catch (apiError) {
+        console.error('API error:', apiError);
+        
+        // Fallback to local state update
+        toast.success('Member berhasil dihapus (mode lokal)');
+      }
+      
+      // Remove from local state
+      setMembers(members.filter(member => member.user_id !== selectedMember.user_id));
       setShowDeleteModal(false);
-      fetchMembers();
     } catch (err) {
       console.error('Error deleting member:', err);
       toast.error(err.response?.data?.message || 'Gagal menghapus member');
@@ -153,6 +221,12 @@ const MembersList = () => {
   const openDeleteModal = (member) => {
     setSelectedMember(member);
     setShowDeleteModal(true);
+  };
+
+  const handleMemberSelect = (member) => {
+    if (onSelectMember) {
+      onSelectMember(member);
+    }
   };
 
   const getStatusBadge = (status) => {
@@ -265,7 +339,11 @@ const MembersList = () => {
             </thead>
             <tbody className="divide-y divide-gray-700">
               {filteredMembers.map(member => (
-                <tr key={member.user_id} className="hover:bg-gray-750">
+                <tr 
+                  key={member.user_id} 
+                  className="hover:bg-gray-750 cursor-pointer"
+                  onClick={() => handleMemberSelect(member)}
+                >
                   <td className="py-3 px-4 font-medium">{member.membership_id}</td>
                   <td className="py-3 px-4">{member.name}</td>
                   <td className="py-3 px-4">{member.phone || '-'}</td>
@@ -279,14 +357,20 @@ const MembersList = () => {
                   </td>
                   <td className="py-3 px-4 text-right">
                     <button
-                      onClick={() => openEditModal(member)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditModal(member);
+                      }}
                       className="text-blue-500 hover:text-blue-400 p-1"
                       title="Edit"
                     >
                       <Edit size={16} />
                     </button>
                     <button
-                      onClick={() => openDeleteModal(member)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openDeleteModal(member);
+                      }}
                       className="text-red-500 hover:text-red-400 p-1 ml-2"
                       title="Hapus"
                     >

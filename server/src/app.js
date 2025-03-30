@@ -1,59 +1,65 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+const express = require('express');
+const cors = require('cors');
+// const path = require('path'); // Komentar atau hapus baris ini
+require('dotenv').config();
 
-// Contexts
-import { AuthProvider } from './contexts/AuthContext';
-import { CartProvider } from './contexts/CartContext';
-import { ShiftProvider } from './contexts/ShiftContext';
+// Import routes
+const authRoutes = require('./routes/authRoutes');
+const deviceRoutes = require('./routes/deviceRoutes');
+const shiftRoutes = require('./routes/shiftRoutes');
+const rentalRoutes = require('./routes/rentalRoutes');
+const foodRoutes = require('./routes/foodRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const memberRoutes = require('./routes/memberRoutes');
+const staffRoutes = require('./routes/staffRoutes');
+const playboxRoutes = require('./routes/playboxRoutes');
+const { sequelize, Playbox, PlayboxReservation, PlayboxGame } = require('./models')
 
-// Components
-import PrivateRoute from './components/shared/PrivateRoute';
-import AdminRoute from './components/shared/AdminRoute';
-import Layout from './components/shared/Layout';
+const app = express();
+const PORT = process.env.PORT || 5000;
 
-// Pages
-import Login from './pages/Login';
-import Dashboard from './pages/Dashboard';
-import POSPage from './pages/POSPage';
-import DevicesPage from './pages/DevicesPage';
-import MembersPage from './pages/MembersPage';
-import FoodItemsPage from './pages/FoodItemsPage';
-import ReportsPage from './pages/ReportsPage';
-import ShiftPage from './pages/ShiftPage';
-import ProfilePage from './pages/ProfilePage';
-import NotFoundPage from './pages/NotFoundPage';
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-function App() {
-  return (
-    <AuthProvider>
-      <ShiftProvider>
-        <CartProvider>
-          <Router>
-            <ToastContainer position="top-right" autoClose={3000} />
-            <Routes>
-              <Route path="/login" element={<Login />} />
-              
-              <Route path="/" element={<PrivateRoute><Layout /></PrivateRoute>}>
-                <Route index element={<Navigate to="/dashboard" replace />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="pos" element={<POSPage />} />
-                <Route path="devices" element={<DevicesPage />} />
-                <Route path="members" element={<MembersPage />} />
-                <Route path="food" element={<FoodItemsPage />} />
-                <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
-                <Route path="shift" element={<ShiftPage />} />
-                <Route path="profile" element={<ProfilePage />} />
-              </Route>
-              
-              <Route path="*" element={<NotFoundPage />} />
-            </Routes>
-          </Router>
-        </CartProvider>
-      </ShiftProvider>
-    </AuthProvider>
-  );
-}
+// API Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/devices', deviceRoutes);
+app.use('/api/shifts', shiftRoutes);
+app.use('/api/rentals', rentalRoutes);
+app.use('/api/food', foodRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/members', memberRoutes);
+app.use('/api/staff', staffRoutes);
+app.use('/api/playbox', playboxRoutes);
 
-export default App;
+// Hapus kode berikut pada lingkungan development
+// // Static files
+// app.use(express.static(path.join(__dirname, '../../client/build')));
+//
+// // Serve React app
+// app.get('*', (req, res) => {
+//   res.sendFile(path.join(__dirname, '../../client/build', 'index.html'));
+// });
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ message: 'Terjadi kesalahan pada server', error: err.message });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server berjalan pada port ${PORT}`);
+});
+const syncDatabase = async () => {
+  try {
+    await sequelize.sync({ alter: true }); // Menggunakan 'alter' untuk mode pengembangan
+    console.log('Database synchronized successfully');
+  } catch (error) {
+    console.error('Error synchronizing database:', error);
+  }
+};
+
+syncDatabase();
+module.exports = app;
