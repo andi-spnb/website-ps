@@ -1,0 +1,1 @@
+console.loh ('error terjadi karena mis komunikasi')
