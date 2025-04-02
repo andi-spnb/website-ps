@@ -1,419 +1,235 @@
-// File: server/src/controllers/reportController.js
-
 const { 
-  Transaction, 
   RentalSession, 
   Device, 
+  Transaction, 
   FoodOrder,
-  OrderItem,
-  FoodItem,
-  Staff,
-  sequelize
+  sequelize 
 } = require('../models');
 const { Op } = require('sequelize');
 
-// Get sales report data
-exports.getSalesReport = async (req, res) => {
-  try {
-    const { startDate, endDate, groupBy = 'day' } = req.query;
-    
-    if (!startDate || !endDate) {
-      return res.status(400).json({
-        message: 'Parameter tanggal mulai dan tanggal akhir diperlukan'
-      });
-    }
-    
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    endDateObj.setHours(23, 59, 59, 999); // Set to end of day
-    
-    // Validasi tanggal
-    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-      return res.status(400).json({
-        message: 'Format tanggal tidak valid'
-      });
-    }
-    
-    let salesData = [];
-    
-    if (groupBy === 'day') {
-      // Kueri untuk data harian
-      const rentalQuery = `
-        SELECT 
-          DATE(transaction_time) as date,
-          SUM(amount) as rental_sales
-        FROM transactions
-        WHERE 
-          transaction_time BETWEEN ? AND ?
-          AND type = 'Rental'
-        GROUP BY DATE(transaction_time)
-        ORDER BY date ASC
-      `;
-      
-      const foodQuery = `
-        SELECT 
-          DATE(transaction_time) as date,
-          SUM(amount) as food_sales
-        FROM transactions
-        WHERE 
-          transaction_time BETWEEN ? AND ?
-          AND type = 'Food'
-        GROUP BY DATE(transaction_time)
-        ORDER BY date ASC
-      `;
-      
-      const [rentalResults, foodResults] = await Promise.all([
-        sequelize.query(rentalQuery, {
-          replacements: [startDateObj, endDateObj],
-          type: sequelize.QueryTypes.SELECT
-        }),
-        sequelize.query(foodQuery, {
-          replacements: [startDateObj, endDateObj],
-          type: sequelize.QueryTypes.SELECT
-        })
-      ]);
-      
-      // Map rentals to a date-indexed object
-      const rentalsMap = {};
-      rentalResults.forEach(item => {
-        const dateStr = new Date(item.date).toISOString().split('T')[0];
-        rentalsMap[dateStr] = parseFloat(item.rental_sales);
-      });
-      
-      // Map food sales to a date-indexed object
-      const foodMap = {};
-      foodResults.forEach(item => {
-        const dateStr = new Date(item.date).toISOString().split('T')[0];
-        foodMap[dateStr] = parseFloat(item.food_sales);
-      });
-      
-      // Generate dates between start and end date
-      const dates = [];
-      let currentDate = new Date(startDateObj);
-      while (currentDate <= endDateObj) {
-        dates.push(new Date(currentDate).toISOString().split('T')[0]);
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
-      
-      // Create combined data
-      salesData = dates.map(date => ({
-        date,
-        rentalSales: rentalsMap[date] || 0,
-        foodSales: foodMap[date] || 0
-      }));
-      
-    } else if (groupBy === 'month') {
-      // Kueri untuk data bulanan
-      const rentalQuery = `
-        SELECT 
-          DATE_FORMAT(transaction_time, '%Y-%m') as date,
-          SUM(amount) as rental_sales
-        FROM transactions
-        WHERE 
-          transaction_time BETWEEN ? AND ?
-          AND type = 'Rental'
-        GROUP BY DATE_FORMAT(transaction_time, '%Y-%m')
-        ORDER BY date ASC
-      `;
-      
-      const foodQuery = `
-        SELECT 
-          DATE_FORMAT(transaction_time, '%Y-%m') as date,
-          SUM(amount) as food_sales
-        FROM transactions
-        WHERE 
-          transaction_time BETWEEN ? AND ?
-          AND type = 'Food'
-        GROUP BY DATE_FORMAT(transaction_time, '%Y-%m')
-        ORDER BY date ASC
-      `;
-      
-      const [rentalResults, foodResults] = await Promise.all([
-        sequelize.query(rentalQuery, {
-          replacements: [startDateObj, endDateObj],
-          type: sequelize.QueryTypes.SELECT
-        }),
-        sequelize.query(foodQuery, {
-          replacements: [startDateObj, endDateObj],
-          type: sequelize.QueryTypes.SELECT
-        })
-      ]);
-      
-      // Map rentals to a month-indexed object
-      const rentalsMap = {};
-      rentalResults.forEach(item => {
-        rentalsMap[item.date] = parseFloat(item.rental_sales);
-      });
-      
-      // Map food sales to a month-indexed object
-      const foodMap = {};
-      foodResults.forEach(item => {
-        foodMap[item.date] = parseFloat(item.food_sales);
-      });
-      
-      // Generate months between start and end date
-      const months = [];
-      let currentDate = new Date(startDateObj);
-      currentDate.setDate(1); // First day of month
-      
-      const endMonth = new Date(endDateObj);
-      endMonth.setDate(1); // First day of month
-      
-      while (currentDate <= endMonth) {
-        const yearMonth = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`;
-        months.push(yearMonth);
-        currentDate.setMonth(currentDate.getMonth() + 1);
-      }
-      
-      // Create combined data
-      salesData = months.map(month => ({
-        date: month,
-        rentalSales: rentalsMap[month] || 0,
-        foodSales: foodMap[month] || 0
-      }));
-    }
-    
-    res.json(salesData);
-  } catch (error) {
-    console.error('Error generating sales report:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
-    });
-  }
-};
-
-// Get rental usage report data
-exports.getRentalUsageReport = async (req, res) => {
+// Mendapatkan statistik penggunaan rental
+exports.getRentalUsage = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
     
+    // Validasi parameter tanggal
     if (!startDate || !endDate) {
-      return res.status(400).json({
-        message: 'Parameter tanggal mulai dan tanggal akhir diperlukan'
-      });
+      return res.status(400).json({ message: 'Tanggal mulai dan akhir diperlukan' });
     }
     
-    const startDateObj = new Date(startDate);
-    const endDateObj = new Date(endDate);
-    endDateObj.setHours(23, 59, 59, 999); // Set to end of day
+    // Konversi ke objek Date untuk validasi
+    const start = new Date(startDate);
+    const end = new Date(endDate);
     
-    // Validasi tanggal
-    if (isNaN(startDateObj.getTime()) || isNaN(endDateObj.getTime())) {
-      return res.status(400).json({
-        message: 'Format tanggal tidak valid'
-      });
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ message: 'Format tanggal tidak valid' });
     }
     
-    // Query untuk data berdasarkan jenis PS
-    const byPSQuery = `
+    // Dapatkan penggunaan berdasarkan tipe perangkat
+    const usageByPS = await sequelize.query(`
       SELECT 
         d.device_type as name,
-        COUNT(rs.session_id) as usage,
+        COUNT(rs.session_id) as total_usage,
         SUM(TIMESTAMPDIFF(HOUR, rs.start_time, 
-          CASE 
-            WHEN rs.actual_end_time IS NOT NULL THEN rs.actual_end_time
-            WHEN rs.end_time < NOW() THEN rs.end_time
-            ELSE NOW()
-          END
-        )) as hours
+          IFNULL(rs.actual_end_time, rs.end_time))) as hours
       FROM rental_sessions rs
       JOIN devices d ON rs.device_id = d.device_id
-      WHERE 
-        rs.start_time BETWEEN ? AND ?
-        AND rs.status != 'Cancelled'
+      WHERE rs.start_time BETWEEN :startDate AND :endDate
       GROUP BY d.device_type
-      ORDER BY name ASC
-    `;
-    
-    // Query untuk data berdasarkan jam
-    const byHourQuery = `
-      SELECT 
-        HOUR(start_time) as hour,
-        COUNT(session_id) as count
-      FROM rental_sessions
-      WHERE 
-        start_time BETWEEN ? AND ?
-        AND status != 'Cancelled'
-      GROUP BY HOUR(start_time)
-      ORDER BY hour ASC
-    `;
-    
-    const [byPSResults, byHourResults] = await Promise.all([
-      sequelize.query(byPSQuery, {
-        replacements: [startDateObj, endDateObj],
-        type: sequelize.QueryTypes.SELECT
-      }),
-      sequelize.query(byHourQuery, {
-        replacements: [startDateObj, endDateObj],
-        type: sequelize.QueryTypes.SELECT
-      })
-    ]);
-    
-    // Format jam
-    const formattedByHour = byHourResults.map(item => ({
-      hour: `${item.hour}:00`,
-      count: parseInt(item.count)
-    }));
-    
-    // Format hasil jenis PS
-    const formattedByPS = byPSResults.map(item => ({
-      name: item.name,
-      usage: parseInt(item.usage),
-      hours: parseInt(item.hours)
-    }));
-    
-    res.json({
-      byPS: formattedByPS,
-      byHour: formattedByHour
-    });
-  } catch (error) {
-    console.error('Error generating rental usage report:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
-    });
-  }
-};
-
-// Get recent transactions
-exports.getRecentTransactions = async (req, res) => {
-  try {
-    const { limit = 5 } = req.query;
-    
-    // Gunakan raw query untuk menghindari masalah asosiasi
-    const rawTransactions = await sequelize.query(`
-      SELECT 
-        t.transaction_id, 
-        t.type, 
-        t.amount, 
-        t.payment_method, 
-        t.transaction_time,
-        t.reference_id,
-        CASE 
-          WHEN t.type = 'Rental' THEN (
-            SELECT CONCAT(d.device_name, ' (', d.device_type, ')')
-            FROM rental_sessions rs
-            JOIN devices d ON rs.device_id = d.device_id
-            WHERE rs.session_id = t.reference_id
-            LIMIT 1
-          )
-          WHEN t.type = 'Food' THEN (
-            SELECT GROUP_CONCAT(fi.name SEPARATOR ', ')
-            FROM food_orders fo
-            JOIN order_items oi ON fo.order_id = oi.order_id
-            JOIN food_items fi ON oi.item_id = fi.item_id
-            WHERE fo.order_id = t.reference_id
-            LIMIT 3
-          )
-          ELSE 'Transaksi Lainnya'
-        END as reference_name
-      FROM transactions t
-      ORDER BY t.transaction_time DESC
-      LIMIT ?
+      ORDER BY d.device_type
     `, {
-      replacements: [parseInt(limit)],
+      replacements: { startDate, endDate },
       type: sequelize.QueryTypes.SELECT
     });
     
-    // Format data untuk front-end
-    const formattedTransactions = rawTransactions.map(transaction => {
+    // Perbaikan nama field untuk frontend
+    const fixedUsageByPS = usageByPS.map(item => ({
+      name: item.name,
+      usage: parseInt(item.total_usage),
+      hours: parseInt(item.hours || 0)
+    }));
+    
+    // Dapatkan penggunaan berdasarkan jam
+    const usageByHour = await sequelize.query(`
+      SELECT 
+        HOUR(start_time) as hour_num,
+        CONCAT(HOUR(start_time), ':00') as hour,
+        COUNT(session_id) as count
+      FROM rental_sessions
+      WHERE start_time BETWEEN :startDate AND :endDate
+      GROUP BY HOUR(start_time), hour
+      ORDER BY hour_num
+    `, {
+      replacements: { startDate, endDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+    
+    res.json({
+      byPS: fixedUsageByPS,
+      byHour: usageByHour
+    });
+  } catch (error) {
+    console.error('Error mendapatkan data penggunaan rental:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Mendapatkan data penjualan untuk laporan
+exports.getSalesData = async (req, res) => {
+  try {
+    const { startDate, endDate, groupBy } = req.query;
+    
+    // Validasi parameter tanggal
+    if (!startDate || !endDate) {
+      return res.status(400).json({ message: 'Tanggal mulai dan akhir diperlukan' });
+    }
+    
+    // Konversi ke objek Date untuk validasi
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return res.status(400).json({ message: 'Format tanggal tidak valid' });
+    }
+    
+    let query;
+    let groupFormat;
+    let labelFormat;
+    
+    // Atur format tanggal berdasarkan pengelompokan
+    if (groupBy === 'month') {
+      groupFormat = '%Y-%m';
+      labelFormat = '%b %Y';
+    } else {
+      // Default ke hari
+      groupFormat = '%Y-%m-%d';
+      labelFormat = '%e %b';
+    }
+    
+    // Query untuk mendapatkan data penjualan yang dikelompokkan berdasarkan hari atau bulan
+    query = `
+      SELECT 
+        DATE_FORMAT(t.transaction_time, '${groupFormat}') as date,
+        DATE_FORMAT(t.transaction_time, '${labelFormat}') as label,
+        SUM(CASE WHEN t.type = 'Rental' THEN t.amount ELSE 0 END) as rentalSales,
+        SUM(CASE WHEN t.type = 'Food' THEN t.amount ELSE 0 END) as foodSales
+      FROM transactions t
+      WHERE t.transaction_time BETWEEN :startDate AND :endDate
+      GROUP BY DATE_FORMAT(t.transaction_time, '${groupFormat}')
+      ORDER BY date
+    `;
+    
+    const salesData = await sequelize.query(query, {
+      replacements: { startDate, endDate },
+      type: sequelize.QueryTypes.SELECT
+    });
+    
+    res.json(salesData);
+  } catch (error) {
+    console.error('Error mendapatkan data penjualan:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Fungsi getRecentTransactions yang sangat sederhana - GANTI SELURUH ISI FUNGSI
+exports.getRecentTransactions = async (req, res) => {
+  try {
+    // Ambil parameter limit dari query
+    const limit = parseInt(req.query.limit || 5);
+    
+    // Hanya ambil data transaksi tanpa join atau subquery
+    const query = "SELECT * FROM transactions ORDER BY transaction_time DESC LIMIT ?";
+    
+    const transactions = await sequelize.query(query, {
+      replacements: [limit],
+      type: sequelize.QueryTypes.SELECT
+    });
+    
+    // Format data untuk frontend
+    const formattedTransactions = transactions.map(transaction => {
+      // Buat data reference default berdasarkan tipe transaksi
       let reference = {};
       
       if (transaction.type === 'Rental') {
-        reference = {
-          device_name: transaction.reference_name?.split(' (')[0] || 'PS Unknown',
-          device_type: transaction.reference_name?.split(' (')[1]?.replace(')', '') || 'Unknown'
+        reference = { 
+          device_name: `PlayStation ${transaction.reference_id}`, 
+          device_type: 'PS4' 
         };
       } else if (transaction.type === 'Food') {
-        reference = {
-          items: transaction.reference_name?.split(', ') || ['Item makanan']
+        reference = { 
+          items: ['Pesanan Makanan/Minuman'] 
         };
       }
       
       return {
         transaction_id: transaction.transaction_id,
         type: transaction.type,
-        amount: parseFloat(transaction.amount),
+        amount: transaction.amount,
         payment_method: transaction.payment_method,
         transaction_time: transaction.transaction_time,
         reference
       };
     });
     
+    console.log('Berhasil mengambil transaksi:', formattedTransactions.length);
     res.json(formattedTransactions);
   } catch (error) {
-    console.error('Error fetching recent transactions:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
-    });
+    console.error('Error mendapatkan transaksi terbaru:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
 
-// Get daily sales stats
-exports.getDailySalesStats = async (req, res) => {
+// Mendapatkan statistik penjualan harian
+exports.getDailySales = async (req, res) => {
   try {
     const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    const todayStart = new Date(today.setHours(0, 0, 0, 0));
+    const todayEnd = new Date(today.setHours(23, 59, 59, 999));
     
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStart = new Date(yesterday.setHours(0, 0, 0, 0));
+    const yesterdayEnd = new Date(yesterday.setHours(23, 59, 59, 999));
     
-    // Get today's sales
+    // Dapatkan penjualan hari ini
     const todaySalesQuery = `
       SELECT 
-        SUM(CASE WHEN type = 'Rental' THEN amount ELSE 0 END) as rental_sales,
-        SUM(CASE WHEN type = 'Food' THEN amount ELSE 0 END) as food_sales,
-        SUM(amount) as total_sales
+        SUM(amount) as total,
+        SUM(CASE WHEN type = 'Rental' THEN amount ELSE 0 END) as rental,
+        SUM(CASE WHEN type = 'Food' THEN amount ELSE 0 END) as food
       FROM transactions
-      WHERE transaction_time BETWEEN ? AND ?
+      WHERE transaction_time BETWEEN :start AND :end
     `;
     
-    // Get yesterday's sales
-    const yesterdaySalesQuery = `
-      SELECT SUM(amount) as total_sales
-      FROM transactions
-      WHERE transaction_time BETWEEN ? AND ?
-    `;
+    const todaySales = await sequelize.query(todaySalesQuery, {
+      replacements: { start: todayStart, end: todayEnd },
+      type: sequelize.QueryTypes.SELECT
+    });
     
-    const [todayResults, yesterdayResults] = await Promise.all([
-      sequelize.query(todaySalesQuery, {
-        replacements: [today, tomorrow],
-        type: sequelize.QueryTypes.SELECT
-      }),
-      sequelize.query(yesterdaySalesQuery, {
-        replacements: [yesterday, today],
-        type: sequelize.QueryTypes.SELECT
-      })
-    ]);
+    // Dapatkan penjualan kemarin
+    const yesterdaySales = await sequelize.query(todaySalesQuery, {
+      replacements: { start: yesterdayStart, end: yesterdayEnd },
+      type: sequelize.QueryTypes.SELECT
+    });
     
-    const todaySales = parseFloat(todayResults[0].total_sales) || 0;
-    const todayRentalSales = parseFloat(todayResults[0].rental_sales) || 0;
-    const todayFoodSales = parseFloat(todayResults[0].food_sales) || 0;
-    const yesterdaySales = parseFloat(yesterdayResults[0].total_sales) || 0;
+    const todayTotal = todaySales[0].total || 0;
+    const yesterdayTotal = yesterdaySales[0].total || 0;
     
-    // Calculate percent change
+    // Hitung perubahan persentase
     let percentChange = 0;
-    if (yesterdaySales > 0) {
-      percentChange = ((todaySales - yesterdaySales) / yesterdaySales) * 100;
+    if (yesterdayTotal > 0) {
+      percentChange = ((todayTotal - yesterdayTotal) / yesterdayTotal) * 100;
     }
     
     res.json({
-      todaySales,
-      todayRentalSales,
-      todayFoodSales,
-      yesterday: yesterdaySales,
+      todaySales: todayTotal,
+      todayRentalSales: todaySales[0].rental || 0,
+      todayFoodSales: todaySales[0].food || 0,
+      yesterday: yesterdayTotal,
       percentChange: parseFloat(percentChange.toFixed(2))
     });
   } catch (error) {
-    console.error('Error fetching daily sales stats:', error);
-    res.status(500).json({ 
-      message: 'Server error', 
-      error: error.message 
-    });
+    console.error('Error mendapatkan penjualan harian:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

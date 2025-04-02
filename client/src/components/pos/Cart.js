@@ -1,9 +1,11 @@
+// File: client/src/components/pos/Cart.js
 import React, { useState } from 'react';
 import { ShoppingCart, User, Trash, Plus, Minus, X, CreditCard, Wallet } from 'lucide-react';
 import { useCart } from '../../contexts/CartContext';
 import { useShift } from '../../contexts/ShiftContext';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
+import MemberSelectionModal from './MemberSelectionModal';
 
 const PaymentMethods = [
   { id: 'cash', name: 'Tunai', icon: <Wallet size={16} /> },
@@ -21,11 +23,13 @@ const Cart = () => {
     updateFoodItemQuantity,
     removeFoodItem,
     clearCart,
-    calculateTotal
+    calculateTotal,
+    setOrderMember
   } = useCart();
   const { currentShift } = useShift();
   
   const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [showMemberModal, setShowMemberModal] = useState(false);
   const [selectedPayment, setSelectedPayment] = useState(PaymentMethods[0].id);
   const [cashReceived, setCashReceived] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -97,6 +101,12 @@ const Cart = () => {
     }
   };
 
+  // Fungsi untuk menghapus member dari keranjang
+  const handleRemoveMember = () => {
+    setOrderMember(null);
+    toast.info('Member telah dihapus dari transaksi');
+  };
+
   return (
     <div className="bg-gray-800 rounded-lg border border-gray-700 h-full flex flex-col">
       <div className="p-4 border-b border-gray-700">
@@ -111,10 +121,26 @@ const Cart = () => {
           <User className="mr-3 text-gray-400" size={18} />
           <div className="flex-1">
             <p className="text-sm text-gray-400">Pelanggan</p>
-            <p>{member ? member.name : 'Pelanggan Umum'}</p>
+            {member ? (
+              <div className="flex items-center">
+                <p className="font-medium">{member.name}</p>
+                <span className="ml-2 text-xs text-yellow-400">{member.reward_points} poin</span>
+                <button 
+                  onClick={handleRemoveMember} 
+                  className="ml-2 text-red-400 hover:text-red-300"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ) : (
+              <p>Pelanggan Umum</p>
+            )}
           </div>
-          <button className="bg-blue-600 px-2 py-1 rounded text-xs">
-            Pilih Member
+          <button 
+            className="bg-blue-600 px-2 py-1 rounded text-xs hover:bg-blue-700"
+            onClick={() => setShowMemberModal(true)}
+          >
+            {member ? 'Ganti Member' : 'Pilih Member'}
           </button>
         </div>
       </div>
@@ -329,6 +355,15 @@ const Cart = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Member Selection Modal */}
+      {showMemberModal && (
+        <MemberSelectionModal
+          isOpen={showMemberModal}
+          onClose={() => setShowMemberModal(false)}
+          onSelectMember={setOrderMember}
+        />
       )}
     </div>
   );

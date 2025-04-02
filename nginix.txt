@@ -1,0 +1,20 @@
+server {
+    listen 80;
+    server_name andispnb.web.id www.andispnb.web.id;  # Ganti dengan domain Anda
+
+    # Serve frontend static files
+    location / {
+        root /var/www/kenzie-gaming/client/build;
+        try_files $uri /index.html;
+    }
+
+    # Reverse proxy untuk API
+    location /api {
+        proxy_pass https://api.andispnb.web.id:5000;  # Sesuaikan dengan port backend Anda
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}

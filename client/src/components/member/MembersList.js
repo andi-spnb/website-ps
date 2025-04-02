@@ -1,37 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Edit, Trash, AlertCircle, Search, X, User, Calendar, Clock } from 'lucide-react';
+import { Users, UserPlus, Edit, Trash, AlertCircle, Search, X } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
-
-// Data default dari database SQL yang diberikan
-const DEFAULT_MEMBERS = [
-  {
-    user_id: 1,
-    name: 'Budi Santoso',
-    phone: '081234567890',
-    email: 'budi@example.com',
-    membership_id: 'KG-0001',
-    registration_date: '2025-03-28T15:00:41',
-    reward_points: 150,
-    expiry_date: '2026-03-28T00:00:00',
-    status: 'Active',
-    createdAt: '2025-03-28T15:00:41',
-    updatedAt: '2025-03-28T15:00:41'
-  },
-  {
-    user_id: 2,
-    name: 'Siti Rahayu',
-    phone: '089876543210',
-    email: 'siti@example.com',
-    membership_id: 'KG-0002',
-    registration_date: '2025-03-28T15:00:41',
-    reward_points: 75,
-    expiry_date: '2026-03-28T00:00:00',
-    status: 'Active',
-    createdAt: '2025-03-28T15:00:41',
-    updatedAt: '2025-03-28T15:00:41'
-  }
-];
 
 const MembersList = ({ onSelectMember }) => {
   const [members, setMembers] = useState([]);
@@ -54,24 +24,13 @@ const MembersList = ({ onSelectMember }) => {
   const fetchMembers = async () => {
     try {
       setLoading(true);
-      
-      // Try to get data from API
-      try {
-        const response = await api.get('/members');
-        console.log("API response for members:", response.data);
-        setMembers(response.data);
-        setError(null);
-      } catch (apiError) {
-        console.error('Error fetching members from API:', apiError);
-        
-        // Fallback to default data if API fails
-        console.log("Using default members data");
-        setMembers(DEFAULT_MEMBERS);
-        setError(null);
-      }
+      const response = await api.get('/members');
+      setMembers(response.data);
+      setError(null);
     } catch (err) {
-      console.error('Error in fetchMembers:', err);
-      setError('Gagal memuat data member');
+      console.error('Error fetching members:', err);
+      setError('Gagal memuat data member: ' + (err.response?.data?.message || err.message));
+      toast.error('Gagal memuat data member dari server');
     } finally {
       setLoading(false);
     }
@@ -101,41 +60,22 @@ const MembersList = ({ onSelectMember }) => {
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Try API first
-      try {
-        // Set default values for new member
-        const memberData = {
-          ...formData,
-          membership_id: formData.membership_id || generateMembershipId(),
-          registration_date: new Date().toISOString(),
-          reward_points: 0,
-          status: 'Active'
-        };
-        
-        const response = await api.post('/members', memberData);
-        toast.success('Member berhasil ditambahkan');
-        
-        // Add the new member to our local state
-        setMembers([...members, response.data]);
-      } catch (apiError) {
-        console.error('API error:', apiError);
-        
-        // Fallback to local state update
-        const newMember = {
-          user_id: Math.max(...members.map(m => m.user_id)) + 1,
-          ...formData,
-          membership_id: formData.membership_id || generateMembershipId(),
-          registration_date: new Date().toISOString(),
-          reward_points: 0,
-          status: 'Active',
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-        
-        setMembers([...members, newMember]);
-        toast.success('Member berhasil ditambahkan (mode lokal)');
-      }
+      // Set default values for new member
+      const memberData = {
+        ...formData,
+        membership_id: formData.membership_id || generateMembershipId(),
+        registration_date: new Date().toISOString(),
+        reward_points: 0,
+        status: 'Active'
+      };
       
+      const response = await api.post('/members', memberData);
+      toast.success('Member berhasil ditambahkan');
+      
+      // Add the new member to our local state
+      setMembers([...members, response.data]);
+      
+      // Reset form and close modal
       setShowAddModal(false);
       setFormData({
         name: '',
@@ -145,6 +85,9 @@ const MembersList = ({ onSelectMember }) => {
         expiry_date: '',
         status: 'Active'
       });
+
+      // Refresh data from server to ensure consistency
+      fetchMembers();
     } catch (err) {
       console.error('Error adding member:', err);
       toast.error(err.response?.data?.message || 'Gagal menambahkan member');
@@ -154,29 +97,18 @@ const MembersList = ({ onSelectMember }) => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      // Try API first
-      try {
-        const response = await api.put(`/members/${selectedMember.user_id}`, formData);
-        toast.success('Data member berhasil diperbarui');
-        
-        // Update member in local state
-        setMembers(members.map(member => 
-          member.user_id === selectedMember.user_id ? {...response.data} : member
-        ));
-      } catch (apiError) {
-        console.error('API error:', apiError);
-        
-        // Fallback to local state update
-        setMembers(members.map(member => 
-          member.user_id === selectedMember.user_id 
-            ? {...member, ...formData, updatedAt: new Date().toISOString()} 
-            : member
-        ));
-        
-        toast.success('Data member berhasil diperbarui (mode lokal)');
-      }
+      const response = await api.put(`/members/${selectedMember.user_id}`, formData);
+      toast.success('Data member berhasil diperbarui');
+      
+      // Update member in local state
+      setMembers(members.map(member => 
+        member.user_id === selectedMember.user_id ? {...response.data} : member
+      ));
       
       setShowEditModal(false);
+      
+      // Refresh data to ensure consistency
+      fetchMembers();
     } catch (err) {
       console.error('Error updating member:', err);
       toast.error(err.response?.data?.message || 'Gagal memperbarui data member');
@@ -185,20 +117,15 @@ const MembersList = ({ onSelectMember }) => {
 
   const handleDeleteSubmit = async () => {
     try {
-      // Try API first
-      try {
-        await api.delete(`/members/${selectedMember.user_id}`);
-        toast.success('Member berhasil dihapus');
-      } catch (apiError) {
-        console.error('API error:', apiError);
-        
-        // Fallback to local state update
-        toast.success('Member berhasil dihapus (mode lokal)');
-      }
+      await api.delete(`/members/${selectedMember.user_id}`);
+      toast.success('Member berhasil dihapus');
       
       // Remove from local state
       setMembers(members.filter(member => member.user_id !== selectedMember.user_id));
       setShowDeleteModal(false);
+      
+      // Refresh data to ensure consistency
+      fetchMembers();
     } catch (err) {
       console.error('Error deleting member:', err);
       toast.error(err.response?.data?.message || 'Gagal menghapus member');
@@ -389,7 +316,7 @@ const MembersList = ({ onSelectMember }) => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
             <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Tambah Member Baru</h2>
+              <h2 className="text-xl font-bold">Tambah Member Baru</h2>
               <button onClick={() => setShowAddModal(false)}>
                 <X size={24} />
               </button>
