@@ -35,8 +35,8 @@ const Cart = () => {
   const [processing, setProcessing] = useState(false);
   
   const subtotal = calculateTotal();
-  const tax = Math.round(subtotal * 0.11); // 11% tax
-  const total = subtotal + tax;
+  // Menghilangkan PPN
+  const total = subtotal; // Tidak ada penambahan tax
 
   const handleCheckout = async () => {
     if (!currentShift) {
@@ -225,10 +225,6 @@ const Cart = () => {
           <div className="flex justify-between">
             <span className="text-gray-400">Subtotal</span>
             <span>Rp{subtotal.toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-gray-400">PPN (11%)</span>
-            <span>Rp{tax.toLocaleString()}</span>
           </div>
           <div className="flex justify-between font-bold border-t border-gray-700 pt-2">
             <span>Total</span>

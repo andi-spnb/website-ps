@@ -14,7 +14,8 @@ import {
   Clock, 
   User,
   LogOut,
-  BoxSelect
+  BoxSelect,
+  DollarSign
 } from 'lucide-react';
 
 const Layout = () => {
@@ -168,6 +169,19 @@ const Layout = () => {
                 </NavLink>
               )}
               
+                            <NavLink
+                  to="/pricing"
+                  className={({ isActive }) =>
+                    `flex items-center px-3 py-2 rounded-md ${
+                      isActive ? "bg-blue-600" : "hover:bg-gray-700"
+                    }`
+                  }
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  <DollarSign size={18} className="mr-3" />
+                  <span>Manajemen Harga</span>
+                </NavLink>
+
               <NavLink
                 to="/shift"
                 className={({ isActive }) =>

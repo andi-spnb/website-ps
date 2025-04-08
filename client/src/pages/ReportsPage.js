@@ -11,6 +11,7 @@ import PlayStationReport from '../components/reports/PlayStationReport';
 import PlayboxReport from '../components/reports/PlayboxReport';
 import FoodBeverageReport from '../components/reports/FoodBeverageReport';
 import StockAlertSystem from '../components/alerts/StockAlertSystem';
+import AnalyticsDashboard from '../components/reports/AnalyticsDashboard';
 
 const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState('sales');
@@ -126,20 +127,6 @@ const ReportsPage = () => {
             Peringatan Stok
           </button>
           <button 
-            className={`px-4 py-2 font-medium flex items-center ${activeTab === 'members' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-400 hover:text-gray-300'}`}
-            onClick={() => setActiveTab('members')}
-          >
-            <User size={16} className="mr-2" />
-            Member
-          </button>
-          <button 
-            className={`px-4 py-2 font-medium flex items-center ${activeTab === 'staff' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-400 hover:text-gray-300'}`}
-            onClick={() => setActiveTab('staff')}
-          >
-            <Users size={16} className="mr-2" />
-            Karyawan
-          </button>
-          <button 
             className={`px-4 py-2 font-medium flex items-center ${activeTab === 'dashboard' ? 'text-blue-500 border-b-2 border-blue-500' : 'text-gray-400 hover:text-gray-300'}`}
             onClick={() => setActiveTab('dashboard')}
           >
@@ -155,60 +142,9 @@ const ReportsPage = () => {
       {activeTab === 'playstation' && <PlayStationReport dateRange={dateRange} />}
       {activeTab === 'playbox' && <PlayboxReport dateRange={dateRange} />}
       {activeTab === 'food' && <FoodBeverageReport dateRange={dateRange} />}
-      {activeTab === 'stockalerts' && <StockAlertSystem />}
-      {activeTab === 'members' && <MembersReport dateRange={dateRange} />}
-      {activeTab === 'staff' && <StaffPerformanceReport dateRange={dateRange} />}
+      {activeTab === 'stockalerts' && <StockAlertSystem dateRange={dateRange} />}
       {activeTab === 'dashboard' && <AnalyticsDashboard dateRange={dateRange} />}
     </div>
   );
 };
-
-// Placeholder untuk komponen yang belum diimplementasikan
-const MembersReport = ({ dateRange }) => (
-  <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-    <h2 className="text-xl font-semibold mb-6">Laporan Member</h2>
-    <p className="text-gray-400">Laporan analisis member akan ditampilkan di sini.</p>
-    <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-800 mt-4">
-      <p className="text-blue-400">
-        Fitur sedang dalam pengembangan. Akan segera tersedia pada pembaruan berikutnya.
-      </p>
-    </div>
-  </div>
-);
-
-const StaffPerformanceReport = ({ dateRange }) => (
-  <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-    <h2 className="text-xl font-semibold mb-6">Laporan Performa Karyawan</h2>
-    <p className="text-gray-400">Laporan performa karyawan akan ditampilkan di sini.</p>
-    <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-800 mt-4">
-      <p className="text-blue-400">
-        Fitur sedang dalam pengembangan. Akan segera tersedia pada pembaruan berikutnya.
-      </p>
-    </div>
-  </div>
-);
-
-const AnalyticsDashboard = ({ dateRange }) => (
-  <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
-    <h2 className="text-xl font-semibold mb-6">Dashboard Analitik</h2>
-    <p className="text-gray-400">Dashboard analitik kinerja bisnis akan ditampilkan di sini.</p>
-    <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-800 mt-4">
-      <p className="text-blue-400">
-        Fitur sedang dalam pengembangan. Akan segera tersedia pada pembaruan berikutnya.
-      </p>
-    </div>
-    
-    {/* Placeholder untuk dashboard future */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
-      <div className="bg-gray-700 p-4 rounded-lg h-24"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-24"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-24"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-48 md:col-span-2"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-48"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-48"></div>
-      <div className="bg-gray-700 p-4 rounded-lg h-48 md:col-span-2"></div>
-    </div>
-  </div>
-);
-
 export default ReportsPage;

@@ -409,3 +409,57 @@ exports.checkExpiredSessions = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
+exports.getRentalHistory = async (req, res) => {
+  try {
+    const { startDate, endDate, status, deviceId, userId, deviceType } = req.query;
+    let whereClause = {};
+    
+    // Apply filters
+    if (startDate && endDate) {
+      whereClause.start_time = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      whereClause.start_time = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      whereClause.start_time = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+    
+    if (status) {
+      whereClause.status = status;
+    }
+    
+    if (deviceId) {
+      whereClause.device_id = deviceId;
+    }
+    
+    if (userId) {
+      whereClause.user_id = userId;
+    }
+    
+    const includeClause = [
+      { 
+        model: Device,
+        ...(deviceType ? { where: { device_type: deviceType } } : {})
+      },
+      { model: User },
+      { model: Staff, attributes: ['staff_id', 'name'] }
+    ];
+    
+    const sessions = await RentalSession.findAll({
+      where: whereClause,
+      include: includeClause,
+      order: [['start_time', 'DESC']],
+      limit: 100
+    });
+    
+    res.json(sessions);
+  } catch (error) {
+    console.error('Error fetching rental history:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

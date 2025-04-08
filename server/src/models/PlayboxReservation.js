@@ -71,6 +71,17 @@ const PlayboxReservation = sequelize.define('PlayboxReservation', {
   created_at: {
     type: DataTypes.DATE,
     defaultValue: DataTypes.NOW
+  },
+  pricing_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: 'Referensi ke model PlayboxPricing'
+  },
+  deposit_amount: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    defaultValue: 0,
+    comment: 'Jumlah deposit yang akan dikembalikan'
   }
 }, {
   tableName: 'playbox_reservations',
