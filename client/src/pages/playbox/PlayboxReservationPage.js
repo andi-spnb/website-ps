@@ -101,54 +101,34 @@ const PlayboxReservationPage = () => {
     };
 
     // Fetch pricing data
-    const fetchPricingData = async () => {
-      try {
-        setLoadingPricing(true);
-        console.log('Fetching playbox pricing data...');
-        const response = await api.get('/api/playbox-pricing');
-        console.log('Pricing data:', response.data);
-        
-        // Filter hanya yang aktif
-        const activePricings = response.data.filter(price => price.is_active);
-        setPricingOptions(activePricings);
-        
-        // Set default pricing jika ada
-        if (activePricings.length > 0) {
-          setSelectedPricing(activePricings[0]);
-        }
-      } catch (error) {
-        console.error('Error fetching pricing data:', error);
-        // Contoh data jika API gagal
-        const dummyPricing = [
-          {
-            price_id: 101,
-            name: 'Paket Standar Playbox',
-            base_price: 50000,
-            hourly_rate: 10000,
-            min_hours: 3,
-            delivery_fee: 20000,
-            weekend_surcharge: 10000,
-            deposit_amount: 300000,
-            is_active: true
-          },
-          {
-            price_id: 102,
-            name: 'Paket Premium Playbox',
-            base_price: 70000,
-            hourly_rate: 15000,
-            min_hours: 3,
-            delivery_fee: 0,
-            weekend_surcharge: 20000,
-            deposit_amount: 500000,
-            is_active: true
-          }
-        ];
-        setPricingOptions(dummyPricing);
-        setSelectedPricing(dummyPricing[0]);
-      } finally {
-        setLoadingPricing(false);
-      }
-    };
+ // Dalam PlayboxReservationPage.js, pada fungsi fetchPricingData
+const fetchPricingData = async () => {
+  try {
+    setLoadingPricing(true);
+    console.log('Fetching playbox pricing data...');
+    // Pastikan URL endpoint API benar
+    const response = await api.get('/api/playbox-pricing');
+    console.log('Pricing data from API:', response.data);
+    
+    // Filter hanya yang aktif
+    const activePricings = response.data.filter(price => price.is_active);
+    setPricingOptions(activePricings);
+    
+    // Set default pricing jika ada
+    if (activePricings.length > 0) {
+      setSelectedPricing(activePricings[0]);
+    }
+  } catch (error) {
+    console.error('Error fetching pricing data:', error);
+    // Fallback data jika diperlukan
+    toast.error('Gagal memuat data harga. Menggunakan data default.');
+    
+    // Tambahkan data fallback jika diperlukan
+    // ...
+  } finally {
+    setLoadingPricing(false);
+  }
+};
 
     fetchPlayboxes();
     fetchPricingData();
