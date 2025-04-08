@@ -1,12 +1,11 @@
 const { Pricing, sequelize } = require('../models');
 const { Op } = require('sequelize');
 
-// Mendapatkan semua data harga PlayStation
 exports.getAllPricing = async (req, res) => {
   try {
     console.log("Fetching all PlayStation pricing data");
     const pricing = await Pricing.findAll({
-      order: [['is_active', 'DESC'], ['name', 'ASC']]
+      order: [['name', 'ASC']] 
     });
     
     console.log(`Retrieved ${pricing.length} PlayStation pricing items`);
@@ -21,8 +20,9 @@ exports.getAllPricing = async (req, res) => {
 exports.getActivePricing = async (req, res) => {
   try {
     console.log("Fetching active PlayStation pricing data");
+    // Hapus filter where untuk is_active
     const pricing = await Pricing.findAll({
-      where: { is_active: true },
+      // where: { is_active: true },
       order: [['name', 'ASC']]
     });
     

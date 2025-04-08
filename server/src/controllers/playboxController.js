@@ -10,16 +10,10 @@ const {
 const { Op } = require('sequelize');
 const { generateBookingCode } = require('../utils/helpers');
 
-// Get all playboxes (public)
+
 exports.getAllPlayboxes = async (req, res) => {
   try {
     const playboxes = await Playbox.findAll({
-      include: [{
-        model: PlayboxGame,
-        where: { is_featured: true },
-        required: false,
-        limit: 5
-      }],
       order: [['playbox_name', 'ASC']]
     });
     
@@ -29,7 +23,6 @@ exports.getAllPlayboxes = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Get available playboxes (public)
 exports.getAvailablePlayboxes = async (req, res) => {
   try {
@@ -486,7 +479,6 @@ exports.updateReservationStatus = async (req, res) => {
   }
 };
 
-// Get all reservations (admin only)
 exports.getAllReservations = async (req, res) => {
   try {
     const { status, startDate, endDate } = req.query;
@@ -513,6 +505,10 @@ exports.getAllReservations = async (req, res) => {
     
     const reservations = await PlayboxReservation.findAll({
       where: whereClause,
+      // Tentukan kolom spesifik yang ingin diambil (tanpa pricing_id)
+      attributes: { 
+        exclude: ['pricing_id'] 
+      },
       include: [
         { model: Playbox },
         { model: Staff, attributes: ['staff_id', 'name'] }
@@ -526,9 +522,6 @@ exports.getAllReservations = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
-// ADMIN CRUD for Playboxes
-
 // Create a new playbox (admin only)
 exports.createPlaybox = async (req, res) => {
   try {
