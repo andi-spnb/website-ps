@@ -3,6 +3,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import { Calendar, Download, Filter } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
+import { exportToExcel, exportToPDF } from '../../utils/exportUtils';
 
 const SalesReport = () => {
   const [salesData, setSalesData] = useState([]);
@@ -118,7 +119,7 @@ const SalesReport = () => {
     return `Rp${amount.toLocaleString('id-ID')}`;
   };
 
-  const exportToCSV = () => {
+  const handleExportToExcel = () => {
     // Format angka dalam format Rupiah (tanpa simbol Rp)
     const formatNumberID = (num) => {
       return num.toLocaleString('id-ID', {
@@ -127,40 +128,56 @@ const SalesReport = () => {
       });
     };
 
-    // Header dengan nama kolom sesuai bahasa Indonesia
-    const csvHeader = 'Tanggal,Pendapatan Rental,Pendapatan F&B,Total\n';
-    
-    // Baris data dengan format yang sudah diperbaiki
-    const csvRows = salesData.map(row => {
-      const date = row.label;
-      const rentalSales = formatNumberID(row.rentalSales);
-      const foodSales = formatNumberID(row.foodSales);
-      const total = formatNumberID(row.rentalSales + row.foodSales);
+    // Buat data untuk Excel
+    const excelData = [
+      // Header dan title
+      ['Laporan Penjualan', '', '', ''],
+      [`Periode: ${dateRange.startDate} s/d ${dateRange.endDate}`, '', '', ''],
+      ['', '', '', ''],
+      ['Tanggal', 'Pendapatan Rental', 'Pendapatan F&B', 'Total'],
       
-      // Kembalikan baris CSV yang terformat
-      return `"${date}",${rentalSales},${foodSales},${total}`;
-    });
-    
-    // Gabungkan header dan baris data
-    const csvContent = `${csvHeader}${csvRows.join('\n')}`;
-    
-    // Buat blob dan inisiasi download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
+      // Data rows
+      ...salesData.map(row => [
+        row.label,
+        formatNumberID(row.rentalSales),
+        formatNumberID(row.foodSales),
+        formatNumberID(row.rentalSales + row.foodSales)
+      ]),
+      
+      // Summary data
+      ['', '', '', ''],
+      ['Total', formatNumberID(totalRentalSales), formatNumberID(totalFoodSales), formatNumberID(totalRevenue)],
+      ['Persentase', `${Math.round((totalRentalSales / totalRevenue) * 100)}%`, `${Math.round((totalFoodSales / totalRevenue) * 100)}%`, '100%']
+    ];
     
     // Format nama file dengan tanggal range
     const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
     const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
-    link.setAttribute('download', `laporan_penjualan_${startDateFormatted}_sampai_${endDateFormatted}.csv`);
+    const filename = `laporan_penjualan_${startDateFormatted}_sampai_${endDateFormatted}`;
     
-    // Initiate download
-    document.body.appendChild(link); // Diperlukan oleh beberapa browser
-    link.click();
-    document.body.removeChild(link); // Bersihkan referensi
-    
-    toast.success('Laporan berhasil diunduh');
+    try {
+      exportToExcel(excelData, filename);
+      toast.success('Laporan berhasil diekspor ke Excel');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Gagal mengekspor ke Excel');
+    }
+  };
+  
+  const handleExportToPDF = () => {
+    try {
+      // Format nama file dengan tanggal range
+      const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
+      const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
+      const filename = `laporan_penjualan_${startDateFormatted}_sampai_${endDateFormatted}`;
+      
+      // Ekspor div dengan laporan ke PDF
+      exportToPDF('sales-report-container', filename);
+      toast.success('Laporan berhasil diekspor ke PDF');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Gagal mengekspor ke PDF');
+    }
   };
 
   if (loading) {
@@ -179,16 +196,27 @@ const SalesReport = () => {
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6" id="sales-report-container">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Laporan Penjualan</h2>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
-        >
-          <Download size={16} className="mr-1" />
-          Unduh CSV
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleExportToExcel}
+            className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
+            title="Ekspor ke Excel"
+          >
+            <Download size={16} className="mr-1" />
+            Excel
+          </button>
+          <button
+            onClick={handleExportToPDF}
+            className="flex items-center bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
+            title="Ekspor ke PDF"
+          >
+            <Download size={16} className="mr-1" />
+            PDF
+          </button>
+        </div>
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 mb-6">

@@ -24,6 +24,8 @@ import ReportsPage from './pages/ReportsPage';
 import ShiftPage from './pages/ShiftPage';
 import ProfilePage from './pages/ProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import PricingPage from './pages/PricingPage'; // Import halaman manajemen harga
+import StaffPage from './pages/StaffPage';
 
 // Playbox Pages
 import PlayboxLandingPage from './pages/playbox/PlayboxLandingPage';
@@ -54,12 +56,14 @@ function App() {
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="pos" element={<POSPage />} />
                 <Route path="devices" element={<DevicesPage />} />
+                <Route path="pricing" element={<AdminRoute><PricingPage /></AdminRoute>} /> {/* Menambahkan route manajemen harga */}
                 <Route path="members" element={<MembersPage />} />
                 <Route path="food" element={<FoodItemsPage />} />
                 <Route path="reports" element={<AdminRoute><ReportsPage /></AdminRoute>} />
                 <Route path="shift" element={<ShiftPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="admin-playbox" element={<AdminRoute><AdminPlayboxPage /></AdminRoute>} />
+                <Route path="staff" element={<AdminRoute><StaffPage /></AdminRoute>} />
               </Route>
               
               <Route path="*" element={<NotFoundPage />} />

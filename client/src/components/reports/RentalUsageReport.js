@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { Calendar, Download, Filter, AlertCircle } from 'lucide-react';
-import { toast } from 'react-toastify'; // Tambahkan import ini
+import { toast } from 'react-toastify';
 import api from '../../services/api';
+import { exportToExcel, exportToPDF } from '../../utils/exportUtils';
 
 const COLORS = ['#3B82F6', '#10B981', '#8B5CF6'];
 
@@ -94,7 +95,7 @@ const RentalUsageReport = () => {
 
   const { totalSessions, totalHours } = calculateTotal();
 
-  const exportToCSV = () => {
+  const handleExportToExcel = () => {
     // Format angka dalam format Indonesia
     const formatNumberID = (num) => {
       return num.toLocaleString('id-ID', {
@@ -103,53 +104,72 @@ const RentalUsageReport = () => {
       });
     };
 
-    // Header CSV untuk laporan penggunaan PS
-    const byPSHeader = 'Jenis PS,Jumlah Sesi,Jam Penggunaan,Rata-rata Jam per Sesi,Persentase\n';
-    
-    // Baris data untuk laporan penggunaan PS
-    const byPSRows = usageData.byPS.map(row => {
-      const usage = formatNumberID(row.usage);
-      const hours = formatNumberID(row.hours);
-      const avgHours = (row.usage > 0) ? (row.hours / row.usage).toFixed(1) : "0";
-      const percentage = totalSessions > 0 ? Math.round((row.usage / totalSessions) * 100) : 0;
+    // Create data for Excel export
+    const excelData = [
+      // Header and title
+      ['Laporan Penggunaan PlayStation', '', '', '', ''],
+      [`Periode: ${dateRange.startDate} s/d ${dateRange.endDate}`, '', '', '', ''],
+      ['', '', '', '', ''],
       
-      return `"${row.name}",${usage},${hours},${avgHours},${percentage}%`;
-    });
+      // Penggunaan berdasarkan jenis PS
+      ['Penggunaan Berdasarkan Jenis PS', '', '', '', ''],
+      ['Jenis PS', 'Jumlah Sesi', 'Jam Penggunaan', 'Rata-rata Jam per Sesi', 'Persentase'],
+      ...usageData.byPS.map(row => [
+        row.name,
+        formatNumberID(row.usage),
+        formatNumberID(row.hours),
+        (row.usage > 0 ? (row.hours / row.usage).toFixed(1) : "0"),
+        `${totalSessions > 0 ? Math.round((row.usage / totalSessions) * 100) : 0}%`
+      ]),
+      
+      // Penggunaan berdasarkan jam
+      ['', '', '', '', ''],
+      ['Penggunaan Berdasarkan Jam', '', '', '', ''],
+      ['Jam', 'Jumlah Sesi', '', '', ''],
+      ...usageData.byHour.map(row => [
+        row.hour,
+        formatNumberID(row.count),
+        '',
+        '',
+        ''
+      ]),
+      
+      // Summary
+      ['', '', '', '', ''],
+      ['Ringkasan', '', '', '', ''],
+      ['Total Sesi', formatNumberID(totalSessions), '', '', ''],
+      ['Total Jam', formatNumberID(totalHours), '', '', ''],
+      ['Rata-rata Jam per Sesi', totalSessions > 0 ? (totalHours / totalSessions).toFixed(1) : "0", '', '', ''],
+    ];
     
-    // Header CSV untuk laporan penggunaan berdasarkan jam
-    const byHourHeader = '\n\nJam,Jumlah Sesi\n';
-    
-    // Baris data untuk laporan penggunaan berdasarkan jam
-    const byHourRows = usageData.byHour.map(row => {
-      return `"${row.hour}",${formatNumberID(row.count)}`;
-    });
-    
-    // Tambahkan ringkasan total
-    const summary = `\n\nRingkasan\n` +
-      `Total Sesi,${formatNumberID(totalSessions)}\n` +
-      `Total Jam,${formatNumberID(totalHours)}\n` +
-      `Rata-rata Jam per Sesi,${totalSessions > 0 ? (totalHours / totalSessions).toFixed(1) : "0"}\n`;
-    
-    // Gabungkan semua bagian CSV
-    const csvContent = `${byPSHeader}${byPSRows.join('\n')}${byHourHeader}${byHourRows.join('\n')}${summary}`;
-    
-    // Buat blob dan inisiasi download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    
-    // Format nama file dengan tanggal range
+    // Format filename with date range
     const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
     const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
-    link.setAttribute('download', `laporan_penggunaan_${startDateFormatted}_sampai_${endDateFormatted}.csv`);
+    const filename = `laporan_penggunaan_ps_${startDateFormatted}_sampai_${endDateFormatted}`;
     
-    // Initiate download
-    document.body.appendChild(link); // Diperlukan oleh beberapa browser
-    link.click();
-    document.body.removeChild(link); // Bersihkan referensi
-    
-    toast.success('Laporan penggunaan berhasil diunduh');
+    try {
+      exportToExcel(excelData, filename);
+      toast.success('Laporan berhasil diekspor ke Excel');
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      toast.error('Gagal mengekspor ke Excel');
+    }
+  };
+
+  const handleExportToPDF = () => {
+    try {
+      // Format filename with date range
+      const startDateFormatted = dateRange.startDate.split('-').reverse().join('');
+      const endDateFormatted = dateRange.endDate.split('-').reverse().join('');
+      const filename = `laporan_penggunaan_ps_${startDateFormatted}_sampai_${endDateFormatted}`;
+      
+      // Export report div to PDF
+      exportToPDF('rental-usage-report-container', filename);
+      toast.success('Laporan berhasil diekspor ke PDF');
+    } catch (error) {
+      console.error('Error exporting to PDF:', error);
+      toast.error('Gagal mengekspor ke PDF');
+    }
   };
 
   const RADIAN = Math.PI / 180;
@@ -184,16 +204,27 @@ const RentalUsageReport = () => {
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6">
+    <div className="bg-gray-800 rounded-lg border border-gray-700 p-6" id="rental-usage-report-container">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Laporan Penggunaan PlayStation</h2>
-        <button
-          onClick={exportToCSV}
-          className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
-        >
-          <Download size={16} className="mr-1" />
-          Unduh CSV
-        </button>
+        <div className="flex space-x-2">
+          <button
+            onClick={handleExportToExcel}
+            className="flex items-center bg-green-600 hover:bg-green-700 px-3 py-2 rounded-lg"
+            title="Ekspor ke Excel"
+          >
+            <Download size={16} className="mr-1" />
+            Excel
+          </button>
+          <button
+            onClick={handleExportToPDF}
+            className="flex items-center bg-red-600 hover:bg-red-700 px-3 py-2 rounded-lg"
+            title="Ekspor ke PDF"
+          >
+            <Download size={16} className="mr-1" />
+            PDF
+          </button>
+        </div>
       </div>
       
       <div className="flex flex-col md:flex-row gap-4 mb-6">

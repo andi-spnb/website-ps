@@ -150,10 +150,13 @@ exports.createReservation = async (req, res) => {
       start_time,
       duration_hours,
       payment_method,
-      notes
+      notes,
+      pricing_id, // Menerima ID pricing dari request
+      total_amount, // Menerima total amount yang dihitung client
+      deposit_amount // Menerima jumlah deposit
     } = req.body;
     
-    // Validate playbox exists and is available
+    // Validasi playbox exists and is available
     const playbox = await Playbox.findByPk(playbox_id, { transaction });
     if (!playbox) {
       await transaction.rollback();
@@ -163,6 +166,21 @@ exports.createReservation = async (req, res) => {
     if (playbox.status !== 'Available') {
       await transaction.rollback();
       return res.status(400).json({ message: 'Playbox sedang tidak tersedia' });
+    }
+    
+    // Validasi pricing (jika pricing_id disediakan)
+    let pricing = null;
+    if (pricing_id) {
+      pricing = await PlayboxPricing.findByPk(pricing_id, { transaction });
+      if (!pricing) {
+        await transaction.rollback();
+        return res.status(404).json({ message: 'Data harga tidak ditemukan' });
+      }
+      
+      if (!pricing.is_active) {
+        await transaction.rollback();
+        return res.status(400).json({ message: 'Paket harga yang dipilih tidak aktif' });
+      }
     }
     
     // Calculate end time
@@ -197,9 +215,29 @@ exports.createReservation = async (req, res) => {
       });
     }
     
-    // Calculate total amount (simplified for now, can be made more complex later)
-    const hourlyRate = 50000; // Rp 50.000 per hour
-    const total_amount = hourlyRate * duration_hours;
+    // Calculate total amount (if not provided, use pricing data)
+    let calculatedTotal = total_amount;
+    if (!calculatedTotal && pricing) {
+      // Base price for minimum hours
+      calculatedTotal = pricing.base_price;
+      
+      // Add hourly rate for additional hours
+      if (duration_hours > pricing.min_hours) {
+        calculatedTotal += pricing.hourly_rate * (duration_hours - pricing.min_hours);
+      }
+      
+      // Add delivery fee
+      calculatedTotal += pricing.delivery_fee || 0;
+      
+      // Add weekend surcharge if applicable
+      const isWeekend = [0, 6].includes(reservationStart.getDay()); // 0 = Sunday, 6 = Saturday
+      if (isWeekend && pricing.weekend_surcharge) {
+        calculatedTotal += pricing.weekend_surcharge;
+      }
+    }
+    
+    // Default deposit amount if not provided
+    const finalDepositAmount = deposit_amount || (pricing ? pricing.deposit_amount : 0);
     
     // Generate unique booking code
     const booking_code = generateBookingCode();
@@ -215,10 +253,12 @@ exports.createReservation = async (req, res) => {
       start_time: reservationStart,
       end_time: reservationEnd,
       status: 'Pending',
-      total_amount,
+      total_amount: calculatedTotal,
       payment_method,
       payment_status: 'Pending',
       notes,
+      pricing_id: pricing ? pricing.price_id : null, // Simpan pricing_id 
+      deposit_amount: finalDepositAmount, // Simpan jumlah deposit
       created_at: new Date()
     }, { transaction });
     
@@ -238,7 +278,8 @@ exports.createReservation = async (req, res) => {
       booking_code,
       reservation: {
         ...reservation.toJSON(),
-        playbox: playbox.toJSON()
+        playbox: playbox.toJSON(),
+        pricing: pricing ? pricing.toJSON() : null
       }
     });
   } catch (error) {
