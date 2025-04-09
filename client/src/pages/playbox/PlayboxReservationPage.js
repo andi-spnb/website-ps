@@ -18,6 +18,7 @@ import {
   Info
 } from 'lucide-react';
 import api from '../../services/api';
+import { toast } from 'react-toastify';
 
 const PlayboxReservationPage = () => {
   const location = useLocation();
@@ -40,6 +41,11 @@ const PlayboxReservationPage = () => {
   const [selectedPricing, setSelectedPricing] = useState(null);
   const [loadingPricing, setLoadingPricing] = useState(true);
   
+  // State untuk opsi pengambilan di studio
+  const [pickupAtStudio, setPickupAtStudio] = useState(false);
+  const studioAddress = "Jl. Contoh No. 123, Kota"; // Alamat studio Anda
+  const studioMapsLink = "https://maps.google.com/?q=Kenzie+Gaming+Studio"; // Link Google Maps studio Anda
+  
   // Form data
   const [formData, setFormData] = useState({
     playbox_id: playboxId || '',
@@ -56,6 +62,8 @@ const PlayboxReservationPage = () => {
   
   // Predefined durations
   const durationOptions = [
+    { value: 1, label: '1 Jam' },
+    { value: 2, label: '2 Jam' },
     { value: 3, label: '3 Jam' },
     { value: 5, label: '5 Jam' },
     { value: 8, label: '8 Jam' },
@@ -101,34 +109,82 @@ const PlayboxReservationPage = () => {
     };
 
     // Fetch pricing data
- // Dalam PlayboxReservationPage.js, pada fungsi fetchPricingData
-const fetchPricingData = async () => {
-  try {
-    setLoadingPricing(true);
-    console.log('Fetching playbox pricing data...');
-    // Pastikan URL endpoint API benar
-    const response = await api.get('/api/playbox-pricing');
-    console.log('Pricing data from API:', response.data);
-    
-    // Filter hanya yang aktif
-    const activePricings = response.data.filter(price => price.is_active);
-    setPricingOptions(activePricings);
-    
-    // Set default pricing jika ada
-    if (activePricings.length > 0) {
-      setSelectedPricing(activePricings[0]);
-    }
-  } catch (error) {
-    console.error('Error fetching pricing data:', error);
-    // Fallback data jika diperlukan
-    toast.error('Gagal memuat data harga. Menggunakan data default.');
-    
-    // Tambahkan data fallback jika diperlukan
-    // ...
-  } finally {
-    setLoadingPricing(false);
-  }
-};
+    const fetchPricingData = async () => {
+      try {
+        setLoadingPricing(true);
+        console.log('Fetching playbox pricing data...');
+        const response = await api.get('/playbox-pricing');
+        console.log('Pricing data from API:', response.data);
+        
+        // Filter hanya yang aktif
+        let activePricings = response.data.filter(price => price.is_active);
+        
+        // Tambahkan opsi harga tanpa paket jika belum ada
+        const hasBasicOption = activePricings.some(price => price.is_basic_option);
+        
+        if (!hasBasicOption && activePricings.length > 0) {
+          // Buat opsi dasar berdasarkan harga terendah yang ada
+          const lowestPrice = [...activePricings].sort((a, b) => a.hourly_rate - b.hourly_rate)[0];
+          
+          const basicOption = {
+            price_id: 'basic',
+            name: 'Tanpa Paket (Standar)',
+            base_price: 0, // Tidak ada biaya dasar
+            hourly_rate: lowestPrice.hourly_rate,
+            min_hours: 1, // Minimum 1 jam
+            delivery_fee: lowestPrice.delivery_fee,
+            weekend_surcharge: 0,
+            deposit_amount: lowestPrice.deposit_amount,
+            is_active: true,
+            is_basic_option: true // Penanda ini adalah opsi dasar
+          };
+          
+          activePricings = [basicOption, ...activePricings];
+        }
+        
+        setPricingOptions(activePricings);
+        
+        // Set default pricing jika ada
+        if (activePricings.length > 0) {
+          setSelectedPricing(activePricings[0]);
+        }
+      } catch (error) {
+        console.error('Error fetching pricing data:', error);
+        toast.error('Gagal memuat data harga. Menggunakan data default.');
+        
+        // Data fallback jika diperlukan
+        const fallbackPricing = [
+          {
+            price_id: 'basic',
+            name: 'Tanpa Paket (Standar)',
+            base_price: 0,
+            hourly_rate: 15000,
+            min_hours: 1,
+            delivery_fee: 20000,
+            weekend_surcharge: 0,
+            deposit_amount: 300000,
+            is_active: true,
+            is_basic_option: true
+          },
+          {
+            price_id: 'package-1',
+            name: 'Paket Standar Playbox',
+            base_price: 50000,
+            hourly_rate: 10000,
+            min_hours: 3,
+            delivery_fee: 20000,
+            weekend_surcharge: 10000,
+            deposit_amount: 300000,
+            is_active: true
+          }
+        ];
+        
+        setPricingOptions(fallbackPricing);
+        setSelectedPricing(fallbackPricing[0]);
+      } finally {
+        setLoadingPricing(false);
+      }
+    };
 
     fetchPlayboxes();
     fetchPricingData();
@@ -188,16 +244,27 @@ const fetchPricingData = async () => {
     
     const hours = parseInt(formData.duration_hours);
     
-    // Pastikan jam sewa minimal sesuai dengan yang ditentukan
-    const actualHours = Math.max(hours, selectedPricing.min_hours);
+    // Jika ini adalah opsi tanpa paket (basic option)
+    if (selectedPricing.is_basic_option) {
+      const hourlyTotal = hours * selectedPricing.hourly_rate;
+      const deliveryFee = pickupAtStudio ? 0 : selectedPricing.delivery_fee || 0;
+      
+      // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
+      const selectedDate = formData.reservation_date ? new Date(formData.reservation_date) : new Date();
+      const isWeekend = [0, 6].includes(selectedDate.getDay()); // 0 = Minggu, 6 = Sabtu
+      const weekendSurcharge = isWeekend ? (selectedPricing.weekend_surcharge || 0) : 0;
+      
+      return hourlyTotal + deliveryFee + weekendSurcharge;
+    }
     
-    // Hitung biaya dasar + tarif per jam untuk jam tambahan
+    // Untuk paket normal, gunakan logika yang sudah ada
+    const actualHours = Math.max(hours, selectedPricing.min_hours);
     const basePrice = selectedPricing.base_price;
     const additionalHours = actualHours - selectedPricing.min_hours;
     const additionalCost = additionalHours > 0 ? additionalHours * selectedPricing.hourly_rate : 0;
     
-    // Tambahkan biaya pengantaran
-    const deliveryFee = selectedPricing.delivery_fee || 0;
+    // Tambahkan biaya pengantaran jika tidak ambil di studio
+    const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
     
     // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
     const selectedDate = formData.reservation_date ? new Date(formData.reservation_date) : new Date();
@@ -263,9 +330,10 @@ const fetchPricingData = async () => {
         duration_hours: parseInt(formData.duration_hours),
         payment_method: formData.payment_method,
         notes: formData.notes,
-        pricing_id: selectedPricing.price_id, // Tambahkan pricing_id
+        pricing_id: selectedPricing.price_id === 'basic' ? null : selectedPricing.price_id, // Tambahkan pricing_id
         total_amount: calculateTotalPrice(), // Gunakan fungsi perhitungan harga
-        deposit_amount: selectedPricing.deposit_amount // Tambahkan deposit
+        deposit_amount: selectedPricing.deposit_amount, // Tambahkan deposit
+        pickup_at_studio: pickupAtStudio // Tambahkan info pengambilan di studio
       };
       
       console.log('Sending reservation data:', reservationData);
@@ -352,7 +420,11 @@ const fetchPricingData = async () => {
                 <ol className="list-decimal ml-4 space-y-1">
                   <li>Tim kami akan menghubungi Anda untuk konfirmasi reservasi.</li>
                   <li>Lakukan pembayaran sesuai metode yang dipilih.</li>
-                  <li>Pada hari-H, Playbox akan diantar ke alamat Anda sesuai jadwal.</li>
+                  {pickupAtStudio ? (
+                    <li>Pada hari-H, Anda dapat mengambil Playbox di studio kami sesuai jadwal.</li>
+                  ) : (
+                    <li>Pada hari-H, Playbox akan diantar ke alamat Anda sesuai jadwal.</li>
+                  )}
                 </ol>
               </div>
             </div>
@@ -467,15 +539,29 @@ const fetchPricingData = async () => {
                       <div className="font-medium text-lg mb-1">{pricing.name}</div>
                       <div className="flex items-center mb-2">
                         <Tag size={14} className="text-blue-400 mr-2" />
-                        <span className="text-lg font-bold">Rp{pricing.base_price.toLocaleString()}</span>
+                        {pricing.is_basic_option ? (
+                          <span className="text-lg font-bold">Rp{pricing.hourly_rate.toLocaleString()}/jam</span>
+                        ) : (
+                          <span className="text-lg font-bold">Rp{pricing.base_price.toLocaleString()}</span>
+                        )}
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div className="text-gray-400">
-                          Min. {pricing.min_hours} jam
-                        </div>
-                        <div className="text-gray-400">
-                          +Rp{pricing.hourly_rate.toLocaleString()}/jam
-                        </div>
+                        {pricing.is_basic_option ? (
+                          <div className="text-gray-400">
+                            Minimum 1 jam
+                          </div>
+                        ) : (
+                          <div className="text-gray-400">
+                            Min. {pricing.min_hours} jam
+                          </div>
+                        )}
+                        
+                        {!pricing.is_basic_option && (
+                          <div className="text-gray-400">
+                            +Rp{pricing.hourly_rate.toLocaleString()}/jam tambahan
+                          </div>
+                        )}
+                        
                         <div className="text-gray-400">
                           {pricing.delivery_fee > 0 
                             ? `Antar: Rp${pricing.delivery_fee.toLocaleString()}` 
@@ -490,7 +576,7 @@ const fetchPricingData = async () => {
                 </div>
               )}
               
-              {selectedPricing && (
+              {selectedPricing && selectedPricing.deposit_amount > 0 && (
                 <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-800">
                   <div className="flex items-center text-sm text-blue-400">
                     <Info size={16} className="mr-2" />
@@ -595,220 +681,304 @@ const fetchPricingData = async () => {
                 </div>
                 
                 <div>
-                  <label className="block text-gray-400 mb-2">Nomor Telepon</label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      name="customer_phone"
-                      value={formData.customer_phone}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
-                      placeholder="Contoh: 08123456789"
-                      required
-                    />
-                    <Phone className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mb-4">
-                <label className="block text-gray-400 mb-2">Email (Opsional)</label>
-                <div className="relative">
-                  <input
-                    type="email"
-                    name="customer_email"
-                    value={formData.customer_email}
-                    onChange={handleInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
-                    placeholder="Contoh: nama@email.com"
-                  />
-                  <Mail className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-gray-400 mb-2">Alamat Pengantaran</label>
-                <div className="relative">
-                  <textarea
-                    name="delivery_address"
-                    value={formData.delivery_address}
-                    onChange={handleInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9 min-h-20"
-                    placeholder="Masukkan alamat lengkap untuk pengantaran"
-                    required
-                  ></textarea>
-                  <MapPin className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                </div>
-              </div>
-            </div>
-            
-            {/* Step 5: Payment Method */}
-            <div className="bg-gray-800 rounded-lg p-6 mb-6">
-              <h2 className="text-xl font-bold mb-4">5. Metode Pembayaran</h2>
-              
-              <div className="space-y-3 mb-4">
-                {paymentMethods.map(method => (
-                  <label 
-                    key={method.id} 
-                    className={`block bg-gray-700 border ${
-                      formData.payment_method === method.id 
-                        ? 'border-blue-500' 
-                        : 'border-gray-600'
-                    } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
-                  >
-                    <div className="flex items-center">
-                      <input
-                        type="radio"
-                        name="payment_method"
-                        value={method.id}
-                        checked={formData.payment_method === method.id}
-                        onChange={handleInputChange}
-                        className="mr-3"
-                      />
-                      <span>{method.name}</span>
-                    </div>
-                  </label>
-                ))}
-              </div>
-              
-              <div>
-                <label className="block text-gray-400 mb-2">Catatan Tambahan (Opsional)</label>
-                <textarea
-                  name="notes"
-                  value={formData.notes}
-                  onChange={handleInputChange}
-                  className="w-full bg-gray-700 border border-gray-600 rounded p-2 min-h-20"
-                  placeholder="Tambahkan catatan khusus jika diperlukan"
-                ></textarea>
-              </div>
-            </div>
-            
-            <button
-              type="submit"
-              disabled={submitting}
-              className={`w-full py-3 rounded-lg font-medium text-lg ${
-                submitting
-                  ? 'bg-blue-800 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700'
-              }`}
-            >
-              {submitting ? 'Memproses...' : 'Konfirmasi Reservasi'}
-            </button>
-          </form>
-        </div>
-        
-        <div>
-          <div className="bg-gray-800 rounded-lg p-6 sticky top-6">
-            <h2 className="text-xl font-bold mb-4">Ringkasan Reservasi</h2>
-            
-            {!selectedPlaybox ? (
-              <div className="text-center py-8 text-gray-400">
-                <Monitor size={48} className="mx-auto mb-3 opacity-30" />
-                <p>Silakan pilih Playbox terlebih dahulu</p>
-              </div>
-            ) : (
-              <>
-                <div className="border-b border-gray-700 pb-4 mb-4">
-                  <h3 className="font-medium">{selectedPlaybox.playbox_name}</h3>
-                  <div className="text-sm text-gray-400">
-                    {selectedPlaybox.tv_size} + {selectedPlaybox.ps4_model}
-                  </div>
-                </div>
-                
-                {selectedPricing && (
-                  <div className="border-b border-gray-700 pb-4 mb-4">
-                    <h3 className="font-medium">{selectedPricing.name}</h3>
-                    <div className="text-sm text-gray-400">
-                      Paket dasar {selectedPricing.min_hours} jam
-                    </div>
-                  </div>
-                )}
-                
-                <div className="space-y-3 mb-6">
-                  {formData.reservation_date && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Tanggal:</span>
-                      <span>{formData.reservation_date}</span>
-                    </div>
-                  )}
-                  
-                  {formData.start_time && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-400">Waktu Mulai:</span>
-                      <span>{formData.start_time}</span>
-                    </div>
-                  )}
-                  
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Durasi:</span>
-                    <span>{formData.duration_hours} jam</span>
-                  </div>
-                  
-                  {selectedPricing && (
-                    <>
-                      <div className="border-t border-gray-700 pt-3 mt-3">
-                        <div className="flex justify-between">
-                          <span className="text-gray-400">Paket Dasar:</span>
-                          <span>Rp{selectedPricing.base_price.toLocaleString()}</span>
-                        </div>
-                        
-                        {getAdditionalHours() > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">
-                              Jam Tambahan ({getAdditionalHours()} jam):
-                            </span>
-                            <span>
-                              Rp{(getAdditionalHours() * selectedPricing.hourly_rate).toLocaleString()}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {selectedPricing.delivery_fee > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Biaya Pengantaran:</span>
-                            <span>Rp{selectedPricing.delivery_fee.toLocaleString()}</span>
-                          </div>
-                        )}
-                        
-                        {isWeekend() && selectedPricing.weekend_surcharge > 0 && (
-                          <div className="flex justify-between">
-                            <span className="text-gray-400">Tambahan Akhir Pekan:</span>
-                            <span>Rp{selectedPricing.weekend_surcharge.toLocaleString()}</span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex justify-between font-bold text-lg border-t border-gray-700 pt-3">
-                        <span>Total:</span>
-                        <span>Rp{calculateTotalPrice().toLocaleString()}</span>
-                      </div>
-                      
-                      {selectedPricing.deposit_amount > 0 && (
-                        <div className="flex justify-between text-blue-400 text-sm">
-                          <span>Deposit (dikembalikan):</span>
-                          <span>Rp{selectedPricing.deposit_amount.toLocaleString()}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
-                
-                <div className="bg-blue-900 bg-opacity-20 rounded-lg p-4 text-sm text-blue-400">
-                  <p className="font-medium mb-2">Informasi Pemesanan:</p>
-                  <ul className="space-y-1">
-                    <li>• Reservasi memerlukan konfirmasi dari staff kami</li>
-                    <li>• Pengantaran Playbox dilakukan 30 menit sebelum waktu mulai</li>
-                    <li>• Pembayaran dapat dilakukan saat pengantaran</li>
-                    <li>• Deposit akan dikembalikan setelah Playbox dikembalikan dalam kondisi baik</li>
-                  </ul>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+                <label className="block text-gray-400 mb-2">Nomor Telepon</label>
+                 <div className="relative">
+                   <input
+                     type="tel"
+                     name="customer_phone"
+                     value={formData.customer_phone}
+                     onChange={handleInputChange}
+                     className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
+                     placeholder="Contoh: 08123456789"
+                     required
+                   />
+                   <Phone className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                 </div>
+               </div>
+             </div>
+             
+             <div className="mb-4">
+               <label className="block text-gray-400 mb-2">Email (Opsional)</label>
+               <div className="relative">
+                 <input
+                   type="email"
+                   name="customer_email"
+                   value={formData.customer_email}
+                   onChange={handleInputChange}
+                   className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
+                   placeholder="Contoh: nama@email.com"
+                 />
+                 <Mail className="absolute left-3 top-2.5 text-gray-400" size={16} />
+               </div>
+             </div>
+             
+             <div>
+               <label className="block text-gray-400 mb-2">Alamat Pengantaran</label>
+               
+               <div className="mb-3">
+                 <label className="flex items-center bg-gray-700 border border-gray-600 rounded-lg p-3 cursor-pointer hover:border-blue-500 mb-3">
+                   <input
+                     type="checkbox"
+                     checked={pickupAtStudio}
+                     onChange={() => {
+                       setPickupAtStudio(!pickupAtStudio);
+                       if (!pickupAtStudio) {
+                         // Jika opsi ambil di studio diaktifkan, isi alamat dengan alamat studio
+                         setFormData(prev => ({ ...prev, delivery_address: `Ambil di studio: ${studioAddress}` }));
+                       } else {
+                         // Jika opsi dimatikan, kosongkan alamat
+                         setFormData(prev => ({ ...prev, delivery_address: '' }));
+                       }
+                     }}
+                     className="mr-3"
+                   />
+                   <span className="font-medium">Ambil Sendiri di Studio</span>
+                 </label>
+                 
+                 {pickupAtStudio && (
+                   <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-800 mb-3">
+                     <div className="flex items-start">
+                       <MapPin size={18} className="text-blue-400 mr-2 mt-0.5" />
+                       <div>
+                         <p className="text-blue-300 font-medium">Lokasi Studio:</p>
+                         <p className="text-blue-300">{studioAddress}</p>
+                         <a 
+                           href={studioMapsLink}
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           className="text-blue-400 hover:text-blue-300 inline-flex items-center mt-2"
+                         >
+                           Lihat di Google Maps <ChevronRight size={14} className="ml-1" />
+                         </a>
+                       </div>
+                     </div>
+                   </div>
+                 )}
+               </div>
+               
+               {!pickupAtStudio && (
+                 <>
+                   <div className="relative">
+                     <textarea
+                       name="delivery_address"
+                       value={formData.delivery_address}
+                       onChange={handleInputChange}
+                       className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9 min-h-20"
+                       placeholder="Masukkan alamat lengkap untuk pengantaran"
+                       required
+                     ></textarea>
+                     <MapPin className="absolute left-3 top-2.5 text-gray-400" size={16} />
+                   </div>
+                   
+                   <div className="mt-2 flex justify-end">
+                     <a 
+                       href="https://maps.google.com/?q=lokasi+saya"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="text-blue-500 hover:text-blue-400 inline-flex items-center text-sm"
+                     >
+                       Tampilkan lokasi saya di Google Maps <ChevronRight size={14} className="ml-1" />
+                     </a>
+                   </div>
+                 </>
+               )}
+             </div>
+           </div>
+           
+           {/* Step 5: Payment Method */}
+           <div className="bg-gray-800 rounded-lg p-6 mb-6">
+             <h2 className="text-xl font-bold mb-4">5. Metode Pembayaran</h2>
+             
+             <div className="space-y-3 mb-4">
+               {paymentMethods.map(method => (
+                 <label 
+                   key={method.id} 
+                   className={`block bg-gray-700 border ${
+                     formData.payment_method === method.id 
+                       ? 'border-blue-500' 
+                       : 'border-gray-600'
+                   } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
+                 >
+                   <div className="flex items-center">
+                     <input
+                       type="radio"
+                       name="payment_method"
+                       value={method.id}
+                       checked={formData.payment_method === method.id}
+                       onChange={handleInputChange}
+                       className="mr-3"
+                     />
+                     <span>{method.name}</span>
+                   </div>
+                 </label>
+               ))}
+             </div>
+             
+             <div>
+               <label className="block text-gray-400 mb-2">Catatan Tambahan (Opsional)</label>
+               <textarea
+                 name="notes"
+                 value={formData.notes}
+                 onChange={handleInputChange}
+                 className="w-full bg-gray-700 border border-gray-600 rounded p-2 min-h-20"
+                 placeholder="Tambahkan catatan khusus jika diperlukan"
+               ></textarea>
+             </div>
+           </div>
+           
+           <button
+             type="submit"
+             disabled={submitting}
+             className={`w-full py-3 rounded-lg font-medium text-lg ${
+               submitting
+                 ? 'bg-blue-800 cursor-not-allowed'
+                 : 'bg-blue-600 hover:bg-blue-700'
+             }`}
+           >
+             {submitting ? 'Memproses...' : 'Konfirmasi Reservasi'}
+           </button>
+         </form>
+       </div>
+       
+       <div>
+         <div className="bg-gray-800 rounded-lg p-6 sticky top-6">
+           <h2 className="text-xl font-bold mb-4">Ringkasan Reservasi</h2>
+           
+           {!selectedPlaybox ? (
+             <div className="text-center py-8 text-gray-400">
+               <Monitor size={48} className="mx-auto mb-3 opacity-30" />
+               <p>Silakan pilih Playbox terlebih dahulu</p>
+             </div>
+           ) : (
+             <>
+               <div className="border-b border-gray-700 pb-4 mb-4">
+                 <h3 className="font-medium">{selectedPlaybox.playbox_name}</h3>
+                 <div className="text-sm text-gray-400">
+                   {selectedPlaybox.tv_size} + {selectedPlaybox.ps4_model}
+                 </div>
+               </div>
+               
+               {selectedPricing && (
+                 <div className="border-b border-gray-700 pb-4 mb-4">
+                   <h3 className="font-medium">{selectedPricing.name}</h3>
+                   <div className="text-sm text-gray-400">
+                     {selectedPricing.is_basic_option 
+                       ? `Rp${selectedPricing.hourly_rate.toLocaleString()}/jam (tanpa paket)` 
+                       : `Paket dasar ${selectedPricing.min_hours} jam`}
+                   </div>
+                 </div>
+               )}
+               
+               <div className="space-y-3 mb-6">
+                 {formData.reservation_date && (
+                   <div className="flex justify-between">
+                     <span className="text-gray-400">Tanggal:</span>
+                     <span>{formData.reservation_date}</span>
+                   </div>
+                 )}
+                 
+                 {formData.start_time && (
+                   <div className="flex justify-between">
+                     <span className="text-gray-400">Waktu Mulai:</span>
+                     <span>{formData.start_time}</span>
+                   </div>
+                 )}
+                 
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Durasi:</span>
+                   <span>{formData.duration_hours} jam</span>
+                 </div>
+                 
+                 <div className="flex justify-between">
+                   <span className="text-gray-400">Pengambilan:</span>
+                   <span>{pickupAtStudio ? 'Ambil di Studio' : 'Diantar ke Alamat'}</span>
+                 </div>
+                 
+                 {selectedPricing && (
+                   <>
+                     <div className="border-t border-gray-700 pt-3 mt-3">
+                       {selectedPricing.is_basic_option ? (
+                         <div className="flex justify-between">
+                           <span className="text-gray-400">Biaya per Jam (x{formData.duration_hours}):</span>
+                           <span>Rp{(selectedPricing.hourly_rate * formData.duration_hours).toLocaleString()}</span>
+                         </div>
+                       ) : (
+                         <>
+                           <div className="flex justify-between">
+                             <span className="text-gray-400">Paket Dasar:</span>
+                             <span>Rp{selectedPricing.base_price.toLocaleString()}</span>
+                           </div>
+                           
+                           {getAdditionalHours() > 0 && (
+                             <div className="flex justify-between">
+                               <span className="text-gray-400">
+                                 Jam Tambahan ({getAdditionalHours()} jam):
+                               </span>
+                               <span>
+                                 Rp{(getAdditionalHours() * selectedPricing.hourly_rate).toLocaleString()}
+                               </span>
+                             </div>
+                           )}
+                         </>
+                       )}
+                       
+                       {!pickupAtStudio && selectedPricing.delivery_fee > 0 && (
+                         <div className="flex justify-between">
+                           <span className="text-gray-400">Biaya Pengantaran:</span>
+                           <span>Rp{selectedPricing.delivery_fee.toLocaleString()}</span>
+                         </div>
+                       )}
+                       
+                       {pickupAtStudio && (
+                         <div className="flex justify-between">
+                           <span className="text-gray-400">Biaya Pengantaran:</span>
+                           <span className="text-green-500">GRATIS (Ambil di Studio)</span>
+                         </div>
+                       )}
+                       
+                       {isWeekend() && selectedPricing.weekend_surcharge > 0 && (
+                         <div className="flex justify-between">
+                           <span className="text-gray-400">Tambahan Akhir Pekan:</span>
+                           <span>Rp{selectedPricing.weekend_surcharge.toLocaleString()}</span>
+                         </div>
+                       )}
+                     </div>
+                     
+                     <div className="flex justify-between font-bold text-lg border-t border-gray-700 pt-3">
+                       <span>Total:</span>
+                       <span>Rp{calculateTotalPrice().toLocaleString()}</span>
+                     </div>
+                     
+                     {selectedPricing.deposit_amount > 0 && (
+                       <div className="flex justify-between text-blue-400 text-sm">
+                         <span>Deposit (dikembalikan):</span>
+                         <span>Rp{selectedPricing.deposit_amount.toLocaleString()}</span>
+                       </div>
+                     )}
+                   </>
+                 )}
+               </div>
+               
+               <div className="bg-blue-900 bg-opacity-20 rounded-lg p-4 text-sm text-blue-400">
+                 <p className="font-medium mb-2">Informasi Pemesanan:</p>
+                 <ul className="space-y-1">
+                   <li>• Reservasi memerlukan konfirmasi dari staff kami</li>
+                   {pickupAtStudio ? (
+                     <li>• Pengambilan Playbox di studio 15 menit sebelum waktu mulai</li>
+                   ) : (
+                     <li>• Pengantaran Playbox dilakukan 30 menit sebelum waktu mulai</li>
+                   )}
+                   <li>• Pembayaran dapat dilakukan saat pengantaran</li>
+                   <li>• Deposit akan dikembalikan setelah Playbox dikembalikan dalam kondisi baik</li>
+                 </ul>
+               </div>
+             </>
+           )}
+         </div>
+       </div>
+     </div>
+   </div>
+ );
 };
 
 export default PlayboxReservationPage;

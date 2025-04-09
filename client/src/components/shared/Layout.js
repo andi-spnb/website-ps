@@ -40,12 +40,16 @@ const Layout = () => {
         sidebarOpen ? "translate-x-0" : "-translate-x-full"
       }`}>
         <div className="flex items-center justify-between h-16 px-4 border-b border-gray-700">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="font-bold">K</span>
-            </div>
-            <h1 className="text-xl font-bold">Kenzie Gaming</h1>
-          </div>
+        <div className="flex items-center space-x-2">
+  <div className="w-8 h-8 rounded-full flex items-center justify-center overflow-hidden">
+    <img 
+      src="/logo192.png" 
+      alt="Your Logo"
+      className="w-full h-full object-cover"
+    />
+  </div>
+  <h1 className="text-xl font-bold">Kenzie Gaming</h1>
+</div>
           <button
             onClick={toggleSidebar}
             className="lg:hidden p-1 rounded-md hover:bg-gray-700"
