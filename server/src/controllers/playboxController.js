@@ -5,6 +5,7 @@ const {
   Staff, 
   Transaction,
   Notification,
+  PlayboxPricing,
   sequelize
 } = require('../models');
 const { Op } = require('sequelize');

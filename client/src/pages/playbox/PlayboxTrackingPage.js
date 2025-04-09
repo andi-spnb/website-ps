@@ -342,7 +342,7 @@ const PlayboxTrackingPage = () => {
                 </p>
                 <div className="flex flex-col sm:flex-row gap-3">
                   <a
-                    href="https://wa.me/c?text=Halo,%20saya%20ingin%20memperpanjang%20waktu%20sewa%20Playbox.%20Kode%20booking:%20PB-ABC12"
+                    href="https://wa.me/6285975418797?text=Halo,%20saya%20ingin%20memperpanjang%20waktu%20sewa%20Playbox.%20Kode%20booking:%20PB-ABC12"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-center font-medium inline-flex items-center justify-center"
@@ -374,7 +374,7 @@ const PlayboxTrackingPage = () => {
                 </div>
                 
                 <a
-                  href="https://wa.me/62895386763040?text=Halo,%20saya%20ingin%20memperpanjang%20waktu%20sewa%20Playbox.%20Kode%20booking:%20PB-ABC12"
+                  href="https://wa.me/6285975418797?text=Halo,%20saya%20ingin%20memperpanjang%20waktu%20sewa%20Playbox.%20Kode%20booking:%20PB-ABC12"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-center font-medium block"
@@ -466,7 +466,7 @@ const PlayboxTrackingPage = () => {
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <a
-              href="https://wa.me/62895386763040?text=Halo,%20saya%20butuh%20bantuan%20terkait%20reservasi%20Playbox%20dengan%20kode%20booking:%20PB-ABC12"
+              href="https://wa.me/6285975418797?text=Halo,%20saya%20butuh%20bantuan%20terkait%20reservasi%20Playbox%20dengan%20kode%20booking:%20PB-ABC12"
               target="_blank"
               rel="noopener noreferrer"
               className="bg-green-600 hover:bg-green-700 text-white p-4 rounded-lg text-center"
@@ -476,11 +476,11 @@ const PlayboxTrackingPage = () => {
             </a>
             
             <a
-              href="tel:+62895386763040"
+              href="tel:+6285975418797"
               className="bg-blue-900 bg-opacity-40 hover:bg-opacity-60 p-4 rounded-lg text-center"
             >
               <div className="font-medium mb-1">Hubungi via Telepon</div>
-              <div className="text-sm text-blue-300">+62 812-3456-7890</div>
+              <div className="text-sm text-blue-300">+6285975418797</div>
             </a>
           </div>
         </div>
