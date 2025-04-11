@@ -55,6 +55,10 @@ PlayboxGame.belongsTo(Playbox, { foreignKey: 'playbox_id' });
 Staff.hasMany(PlayboxReservation, { foreignKey: 'staff_id' });
 PlayboxReservation.belongsTo(Staff, { foreignKey: 'staff_id' });
 
+PlayboxReservation.belongsTo(Playbox, { foreignKey: 'playbox_id' });
+Playbox.hasMany(PlayboxReservation, { foreignKey: 'playbox_id' });
+
+
 Transaction.belongsTo(RentalSession, { 
   foreignKey: 'reference_id', 
   constraints: false,

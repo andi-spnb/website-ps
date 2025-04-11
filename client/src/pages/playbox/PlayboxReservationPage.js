@@ -291,66 +291,131 @@ const PlayboxReservationPage = () => {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    // Validate form
+  
+    console.log('Initial Form Data:', formData);
+    console.log('Available Playboxes:', playboxes);
+  
+    // Extensive validation checks
     if (!formData.playbox_id) {
       setError('Silakan pilih Playbox');
       return;
     }
+  
+    // Ensure playbox_id is a valid number
+    const parsedPlayboxId = parseInt(formData.playbox_id, 10);
     
+    if (isNaN(parsedPlayboxId)) {
+      setError('Playbox ID tidak valid. Silakan pilih Playbox dari daftar.');
+      return;
+    }
+  
+    console.log('Parsed Playbox ID:', parsedPlayboxId);
+  
+    // Additional validation checks
     if (!formData.reservation_date) {
       setError('Silakan pilih tanggal reservasi');
       return;
     }
-    
+  
     if (!formData.start_time) {
       setError('Silakan pilih jam mulai');
       return;
     }
-    
+  
     if (!selectedPricing) {
       setError('Silakan pilih paket harga');
       return;
     }
-    
+  
+    // Ensure a valid Playbox is selected
+    const selectedPlayboxCheck = playboxes.find(p => p.playbox_id === parsedPlayboxId);
+    if (!selectedPlayboxCheck) {
+      setError('Playbox yang dipilih tidak tersedia');
+      console.error('No matching Playbox found for ID:', parsedPlayboxId);
+      return;
+    }
+  
+    console.log('Selected Playbox:', selectedPlayboxCheck);
+  
     try {
       setSubmitting(true);
       setError(null);
-      
-      // Format start_time to full ISO datetime
+  
       const startDateTime = new Date(`${formData.reservation_date}T${formData.start_time}`);
       
-      const reservationData = {
-        playbox_id: parseInt(formData.playbox_id),
-        customer_name: formData.customer_name,
-        customer_phone: formData.customer_phone,
-        customer_email: formData.customer_email,
-        delivery_address: formData.delivery_address,
-        start_time: startDateTime.toISOString(),
-        duration_hours: parseInt(formData.duration_hours),
-        payment_method: formData.payment_method,
-        notes: formData.notes,
-        pricing_id: selectedPricing.price_id === 'basic' ? null : selectedPricing.price_id, // Tambahkan pricing_id
-        total_amount: calculateTotalPrice(), // Gunakan fungsi perhitungan harga
-        deposit_amount: selectedPricing.deposit_amount, // Tambahkan deposit
-        pickup_at_studio: pickupAtStudio // Tambahkan info pengambilan di studio
-      };
+      // Buat FormData untuk mengirim data termasuk file
+      const formDataObj = new FormData();
+      formDataObj.append('playbox_id', parsedPlayboxId);
+      formDataObj.append('customer_name', formData.customer_name);
+      formDataObj.append('customer_phone', formData.customer_phone);
       
-      console.log('Sending reservation data:', reservationData);
+      if (formData.customer_email) {
+        formDataObj.append('customer_email', formData.customer_email);
+      }
       
-      const response = await api.post('/playbox/public/reserve', reservationData);
+      formDataObj.append('delivery_address', formData.delivery_address);
+      formDataObj.append('start_time', startDateTime.toISOString());
+      formDataObj.append('duration_hours', formData.duration_hours);
+      formDataObj.append('payment_method', formData.payment_method);
       
-      // Handle success
+      if (formData.notes) {
+        formDataObj.append('notes', formData.notes);
+      }
+      
+      formDataObj.append('pickup_at_studio', pickupAtStudio);
+      
+      // Menambahkan detail pricing
+      if (selectedPricing.price_id !== 'basic') {
+        formDataObj.append('pricing_id', selectedPricing.price_id);
+      }
+      
+      // Menambahkan calculated total amount dan deposit
+      formDataObj.append('total_amount', calculateTotalPrice());
+      formDataObj.append('deposit_amount', selectedPricing.deposit_amount || 0);
+      
+      // Menambahkan bukti pembayaran jika ada
+      if (formData.payment_method === 'transfer' && formData.transfer_proof) {
+        // Menggunakan nama field 'payment_proof' sesuai dengan middleware upload
+        formDataObj.append('payment_proof', formData.transfer_proof);
+      } else if (formData.payment_method === 'qris' && formData.qris_proof) {
+        // Menggunakan nama field 'payment_proof' sesuai dengan middleware upload
+        formDataObj.append('payment_proof', formData.qris_proof);
+      }
+      
+      console.log('Form data to submit:', formDataObj);
+      
+      // Gunakan konfigurasi khusus untuk FormData
+      const response = await api.post('/playbox/public/reserve', formDataObj, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+  
       setBookingCode(response.data.booking_code);
       setReservationSuccess(true);
       window.scrollTo(0, 0);
     } catch (err) {
-      console.error('Error creating reservation:', err);
-      setError(err.response?.data?.message || 'Gagal membuat reservasi');
+      console.error('Full error details:', err);
+      
+      // More detailed error handling
+      if (err.response) {
+        // The request was made and the server responded with a status code
+        console.error('Server response error:', err.response.data);
+        setError(err.response.data.message || 'Gagal membuat reservasi');
+      } else if (err.request) {
+        // The request was made but no response was received
+        console.error('No response received:', err.request);
+        setError('Tidak ada respon dari server');
+      } else {
+        // Something happened in setting up the request
+        console.error('Error setting up request:', err.message);
+        setError('Gagal membuat reservasi');
+      }
     } finally {
       setSubmitting(false);
     }
   };
+  
   
   if (loading) {
     return (
@@ -790,28 +855,84 @@ const PlayboxReservationPage = () => {
              <h2 className="text-xl font-bold mb-4">5. Metode Pembayaran</h2>
              
              <div className="space-y-3 mb-4">
-               {paymentMethods.map(method => (
-                 <label 
-                   key={method.id} 
-                   className={`block bg-gray-700 border ${
-                     formData.payment_method === method.id 
-                       ? 'border-blue-500' 
-                       : 'border-gray-600'
-                   } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
-                 >
-                   <div className="flex items-center">
-                     <input
-                       type="radio"
-                       name="payment_method"
-                       value={method.id}
-                       checked={formData.payment_method === method.id}
-                       onChange={handleInputChange}
-                       className="mr-3"
-                     />
-                     <span>{method.name}</span>
-                   </div>
-                 </label>
-               ))}
+{paymentMethods.map(method => (
+  <label 
+    key={method.id} 
+    className={`block bg-gray-700 border ${
+      formData.payment_method === method.id 
+        ? 'border-blue-500' 
+        : 'border-gray-600'
+    } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
+  >
+    <div className="flex items-center">
+      <input
+        type="radio"
+        name="payment_method"
+        value={method.id}
+        checked={formData.payment_method === method.id}
+        onChange={handleInputChange}
+        className="mr-3"
+      />
+      <span>{method.name}</span>
+    </div>
+  </label>
+))}
+
+{formData.payment_method === 'transfer' && (
+  <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
+    <p className="mb-2 font-semibold text-white">Transfer ke Rekening:</p>
+    <p>Bank: <strong>BCA</strong></p>
+    <p>Atas Nama: <strong>Kenzie Gaming</strong></p>
+    <p>No. Rekening: <strong className="font-mono tracking-widest">1234567890</strong></p>
+<div className="mt-4">
+  <label className="block text-gray-400 mb-2">Upload Bukti Transfer</label>
+  <input 
+    type="file" 
+    name="transfer_proof"
+    accept="image/*,application/pdf"
+    onChange={(e) => setFormData(prev => ({ 
+      ...prev, 
+      transfer_proof: e.target.files[0] 
+    }))}
+    className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+  />
+</div>
+  </div>
+)}
+
+{formData.payment_method === 'qris' && (
+  <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
+    <p className="mb-2 font-semibold text-white">Scan QRIS untuk Pembayaran:</p>
+    <img 
+      src="/qris.jpg" 
+      alt="QRIS Kenzie Gaming"
+      className="w-40 h-auto mx-auto border border-gray-500 rounded mb-4"
+    />
+    <div className="text-center">
+      <a 
+        href="/qris.jpg" 
+        download
+        className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-4 rounded-lg"
+      >
+        Download QRIS
+      </a>
+    </div>
+<div className="mt-4">
+  <label className="block text-gray-400 mb-2">Upload Bukti Pembayaran</label>
+  <input 
+    type="file" 
+    name="qris_proof"
+    accept="image/*,application/pdf"
+    onChange={(e) => setFormData(prev => ({ 
+      ...prev, 
+      qris_proof: e.target.files[0] 
+    }))}
+    className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+  />
+</div>
+  </div>
+)}
+
              </div>
              
              <div>

@@ -3,12 +3,13 @@ const router = express.Router();
 const playboxController = require('../controllers/playboxController');
 const auth = require('../middleware/auth');
 const roleCheck = require('../middleware/roleCheck');
+const upload = require('../middleware/upload');
 
 // Public routes
 router.get('/public', playboxController.getAllPlayboxes);
 router.get('/public/available', playboxController.getAvailablePlayboxes);
 router.get('/public/:id', playboxController.getPlayboxById);
-router.post('/public/reserve', playboxController.createReservation);
+router.post('/public/reserve', upload.single('payment_proof'), playboxController.createReservation);
 router.get('/public/reservation/:booking_code', playboxController.getReservationByCode);
 
 // Admin routes - require authentication and proper role

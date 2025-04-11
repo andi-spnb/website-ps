@@ -5,10 +5,8 @@ const BASE_URL = 'http://localhost:5000/api';
 
 const api = axios.create({
   baseURL: BASE_URL,
-  timeout: 10000,
-  headers: {
-    'Content-Type': 'application/json'
-  }
+  timeout: 10000
+  // Hapus default Content-Type header agar bisa dinamis
 });
 
 // Initialize token from localStorage if it exists
@@ -25,6 +23,17 @@ api.interceptors.request.use(
     if (token && !config.headers.Authorization) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    
+    // Jangan atur Content-Type jika sudah diatur (penting untuk FormData)
+    if (!config.headers['Content-Type'] && !config.data instanceof FormData) {
+      config.headers['Content-Type'] = 'application/json';
+    }
+    
+    // Jika data FormData, biarkan browser set Content-Type dengan boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -33,7 +42,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor for handling errors
+// Response interceptor masih sama seperti sebelumnya
 api.interceptors.response.use(
   (response) => {
     console.log("API Response:", response.status, response.config.url);
