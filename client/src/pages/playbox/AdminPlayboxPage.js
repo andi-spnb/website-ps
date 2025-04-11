@@ -873,6 +873,31 @@ const AdminPlayboxPage = () => {
                     <span className="text-gray-400">Metode Pembayaran:</span>
                     <span>{selectedReservation.payment_method || '-'}</span>
                   </div>
+                  {selectedReservation.payment_proof_url && (
+  <div className="mb-6">
+    <h3 className="text-lg font-semibold mb-3">Bukti Pembayaran</h3>
+    <div className="bg-gray-700 rounded-lg p-4">
+      <a 
+        href={`http://localhost:5000${selectedReservation.payment_proof_url}`} 
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-blue-400 hover:underline"
+      >
+        Lihat / Download Bukti
+      </a>
+      {/\.(jpg|jpeg|png|webp|gif)$/i.test(selectedReservation.payment_proof_url) && (
+        <div className="mt-4">
+          <img 
+            src={`http://localhost:5000${selectedReservation.payment_proof_url}`} 
+            alt="Bukti Pembayaran" 
+            className="rounded border border-gray-600 max-h-64 object-contain" 
+          />
+        </div>
+      )}
+    </div>
+  </div>
+)}
+
                   <div className="flex justify-between">
                     <span className="text-gray-400">Status Pembayaran:</span>
                     <span>

@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
+const path = require('path');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -36,6 +37,8 @@ app.use('/api/staff', staffRoutes);
 app.use('/api/playbox', playboxRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/playbox-pricing', playboxPricingRoutes);
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -55,19 +58,21 @@ app.listen(PORT, () => {
 
 // Fungsi synchronize database
 const { sequelize, PlayboxPricing } = require('./models');
+
 const syncDatabase = async () => {
   try {
-    // Sinkronisasi database umum
+    // Sinkronisasi semua model
     await sequelize.sync({ alter: false });
-    console.log('Database synchronized successfully');
-    
-    // Pastikan tabel PlayboxPricing telah dibuat
+    console.log('✅ Database synchronized successfully');
+
+    // Sinkronisasi khusus PlayboxPricing (boleh dihapus kalau sudah include)
     await PlayboxPricing.sync({ alter: true });
-    console.log('PlayboxPricing table synchronized successfully');
+    console.log('✅ PlayboxPricing table synchronized successfully');
   } catch (error) {
-    console.error('Error synchronizing database:', error);
+    console.error('❌ Error synchronizing database:', error);
   }
 };
 
 syncDatabase();
+
 module.exports = app;
