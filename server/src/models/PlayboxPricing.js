@@ -22,7 +22,7 @@ const PlayboxPricing = sequelize.define('PlayboxPricing', {
   min_hours: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    defaultValue: 1
+    defaultValue: 3
   },
   delivery_fee: {
     type: DataTypes.FLOAT,
@@ -38,6 +38,16 @@ const PlayboxPricing = sequelize.define('PlayboxPricing', {
     type: DataTypes.FLOAT,
     allowNull: false,
     defaultValue: 0
+  },
+  package_12h_price: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    comment: 'Harga spesial untuk paket 12 jam'
+  },
+  package_24h_price: {
+    type: DataTypes.FLOAT,
+    allowNull: true,
+    comment: 'Harga spesial untuk paket 24 jam'
   },
   is_active: {
     type: DataTypes.BOOLEAN,

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import EnhancedReservationScheduler from '../../components/playbox/EnhancedReservationScheduler';
+import PricingPackageSelector from '../../components/playbox/PricingPackageSelector';
 import { 
   Monitor, 
   Calendar, 
@@ -46,6 +48,9 @@ const PlayboxReservationPage = () => {
   const studioAddress = "Jl. Contoh No. 123, Kota"; // Alamat studio Anda
   const studioMapsLink = "https://maps.google.com/?q=Kenzie+Gaming+Studio"; // Link Google Maps studio Anda
   
+  // State untuk mendeteksi akhir pekan
+  const [isWeekend, setIsWeekend] = useState(false);
+  
   // Form data
   const [formData, setFormData] = useState({
     playbox_id: playboxId || '',
@@ -62,10 +67,10 @@ const PlayboxReservationPage = () => {
   
   // Predefined durations
   const durationOptions = [
-    { value: 1, label: '1 Jam' },
-    { value: 2, label: '2 Jam' },
     { value: 3, label: '3 Jam' },
+    { value: 4, label: '4 Jam' },
     { value: 5, label: '5 Jam' },
+    { value: 6, label: '6 Jam' },
     { value: 8, label: '8 Jam' },
     { value: 12, label: '12 Jam' },
     { value: 24, label: '24 Jam (1 Hari)' }
@@ -175,6 +180,8 @@ const PlayboxReservationPage = () => {
             delivery_fee: 20000,
             weekend_surcharge: 10000,
             deposit_amount: 300000,
+            package_12h_price: 180000,
+            package_24h_price: 320000,
             is_active: true
           }
         ];
@@ -190,6 +197,14 @@ const PlayboxReservationPage = () => {
     fetchPricingData();
   }, [playboxId]);
   
+  // Effect untuk mengupdate isWeekend saat tanggal berubah
+  useEffect(() => {
+    if (formData.reservation_date) {
+      const date = new Date(formData.reservation_date);
+      setIsWeekend(date.getDay() === 0 || date.getDay() === 6); // 0 = Minggu, 6 = Sabtu
+    }
+  }, [formData.reservation_date]);
+  
   // Load available time slots when date changes
   useEffect(() => {
     if (!formData.reservation_date || !formData.playbox_id) {
@@ -199,22 +214,31 @@ const PlayboxReservationPage = () => {
     
     const fetchTimeSlots = async () => {
       try {
+        // Gunakan endpoint dengan parameter date yang benar
         const response = await api.get(`/playbox/public/available?date=${formData.reservation_date}`);
-        const selectedPlaybox = response.data.find(p => p.playbox_id === parseInt(formData.playbox_id));
         
-        if (selectedPlaybox && selectedPlaybox.timeSlots) {
-          setAvailableTimeSlots(selectedPlaybox.timeSlots);
+        // Cari playbox yang dipilih dari hasil response
+        const selectedPlayboxData = response.data.find(p => 
+          p.playbox_id === parseInt(formData.playbox_id)
+        );
+        
+        if (selectedPlayboxData && selectedPlayboxData.timeSlots) {
+          // Set available time slots berdasarkan data dari API
+          setAvailableTimeSlots(selectedPlayboxData.timeSlots);
+        } else {
+          // Fallback jika tidak menemukan data slot waktu
+          setAvailableTimeSlots([]);
         }
       } catch (err) {
         console.error('Error fetching time slots:', err);
-        // Generate default time slots (for demo)
+        
+        // Fallback untuk demo: buat slot waktu default 
         const defaultSlots = [];
         for (let hour = 8; hour < 22; hour++) {
-          const startTime = `${String(hour).padStart(2, '0')}:00`;
           defaultSlots.push({
             hour,
-            startTime,
-            available: Math.random() > 0.3 // 70% available (for demo)
+            startTime: `${String(hour).padStart(2, '0')}:00`,
+            available: Math.random() > 0.3 // 70% available (untuk demo)
           });
         }
         setAvailableTimeSlots(defaultSlots);
@@ -242,43 +266,60 @@ const PlayboxReservationPage = () => {
   const calculateTotalPrice = () => {
     if (!selectedPricing) return 0;
     
-    const hours = parseInt(formData.duration_hours);
+    const hours = parseInt(formData.duration_hours || 0);
+    if (!hours) return 0;
     
-    // Jika ini adalah opsi tanpa paket (basic option)
-    if (selectedPricing.is_basic_option) {
+    // Cek apakah harga spesial untuk paket 12/24 jam tersedia
+    if (hours === 12 && selectedPricing.package_12h_price) {
+      // Harga paket 12 jam
+      const basePrice = selectedPricing.package_12h_price;
+      
+      // Tambahkan biaya pengantaran jika tidak ambil di studio
+      const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
+      
+      // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
+      const weekendSurcharge = isWeekend ? (basePrice * (selectedPricing.weekend_surcharge || 0) / 100) : 0;
+      
+      return basePrice + deliveryFee + weekendSurcharge;
+    } else if (hours === 24 && selectedPricing.package_24h_price) {
+      // Harga paket 24 jam
+      const basePrice = selectedPricing.package_24h_price;
+      
+      // Tambahkan biaya pengantaran jika tidak ambil di studio
+      const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
+      
+      // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
+      const weekendSurcharge = isWeekend ? (basePrice * (selectedPricing.weekend_surcharge || 0) / 100) : 0;
+      
+      return basePrice + deliveryFee + weekendSurcharge;
+    } else if (selectedPricing.is_basic_option) {
       const hourlyTotal = hours * selectedPricing.hourly_rate;
       const deliveryFee = pickupAtStudio ? 0 : selectedPricing.delivery_fee || 0;
       
       // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
-      const selectedDate = formData.reservation_date ? new Date(formData.reservation_date) : new Date();
-      const isWeekend = [0, 6].includes(selectedDate.getDay()); // 0 = Minggu, 6 = Sabtu
-      const weekendSurcharge = isWeekend ? (selectedPricing.weekend_surcharge || 0) : 0;
+      const weekendSurcharge = isWeekend ? (hourlyTotal * (selectedPricing.weekend_surcharge || 0) / 100) : 0;
       
       return hourlyTotal + deliveryFee + weekendSurcharge;
+    } else {
+      // Harga normal (non-paket)
+      const basePrice = selectedPricing.base_price || 0;
+      const hourlyRate = selectedPricing.hourly_rate || 0;
+      
+      // Hitung jam tambahan
+      const additionalHours = Math.max(0, hours - selectedPricing.min_hours);
+      const hourlyTotal = additionalHours * hourlyRate;
+      
+      // Tambahkan biaya pengantaran jika tidak ambil di studio
+      const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
+      
+      // Harga subtotal
+      const subtotal = basePrice + hourlyTotal + deliveryFee;
+      
+      // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
+      const weekendSurcharge = isWeekend ? (subtotal * (selectedPricing.weekend_surcharge || 0) / 100) : 0;
+      
+      return subtotal + weekendSurcharge;
     }
-    
-    // Untuk paket normal, gunakan logika yang sudah ada
-    const actualHours = Math.max(hours, selectedPricing.min_hours);
-    const basePrice = selectedPricing.base_price;
-    const additionalHours = actualHours - selectedPricing.min_hours;
-    const additionalCost = additionalHours > 0 ? additionalHours * selectedPricing.hourly_rate : 0;
-    
-    // Tambahkan biaya pengantaran jika tidak ambil di studio
-    const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
-    
-    // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
-    const selectedDate = formData.reservation_date ? new Date(formData.reservation_date) : new Date();
-    const isWeekend = [0, 6].includes(selectedDate.getDay()); // 0 = Minggu, 6 = Sabtu
-    const weekendSurcharge = isWeekend ? (selectedPricing.weekend_surcharge || 0) : 0;
-    
-    return basePrice + additionalCost + deliveryFee + weekendSurcharge;
-  };
-  
-  // Cek apakah hari yang dipilih adalah akhir pekan
-  const isWeekend = () => {
-    if (!formData.reservation_date) return false;
-    const selectedDate = new Date(formData.reservation_date);
-    return [0, 6].includes(selectedDate.getDay()); // 0 = Minggu, 6 = Sabtu
   };
   
   // Hitung jam tambahan
@@ -291,6 +332,17 @@ const PlayboxReservationPage = () => {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
+  
+    // Validasi apakah slot waktu yang dipilih masih tersedia
+    if (formData.start_time) {
+      const selectedHour = parseInt(formData.start_time.split(':')[0]);
+      const selectedSlot = availableTimeSlots.find(slot => slot.hour === selectedHour);
+      
+      if (selectedSlot && !selectedSlot.available) {
+        setError('Slot waktu yang dipilih sudah tidak tersedia. Silakan pilih waktu lain.');
+        return;
+      }
+    }
   
     console.log('Initial Form Data:', formData);
     console.log('Available Playboxes:', playboxes);
@@ -589,67 +641,15 @@ const PlayboxReservationPage = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-                  {pricingOptions.map(pricing => (
-                    <button
-                      key={pricing.price_id}
-                      type="button"
-                      onClick={() => setSelectedPricing(pricing)}
-                      className={`p-4 rounded-lg text-left ${
-                        selectedPricing?.price_id === pricing.price_id 
-                          ? 'bg-blue-600 border-2 border-blue-500' 
-                          : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
-                      }`}
-                    >
-                      <div className="font-medium text-lg mb-1">{pricing.name}</div>
-                      <div className="flex items-center mb-2">
-                        <Tag size={14} className="text-blue-400 mr-2" />
-                        {pricing.is_basic_option ? (
-                          <span className="text-lg font-bold">Rp{pricing.hourly_rate.toLocaleString()}/jam</span>
-                        ) : (
-                          <span className="text-lg font-bold">Rp{pricing.base_price.toLocaleString()}</span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {pricing.is_basic_option ? (
-                          <div className="text-gray-400">
-                            Minimum 1 jam
-                          </div>
-                        ) : (
-                          <div className="text-gray-400">
-                            Min. {pricing.min_hours} jam
-                          </div>
-                        )}
-                        
-                        {!pricing.is_basic_option && (
-                          <div className="text-gray-400">
-                            +Rp{pricing.hourly_rate.toLocaleString()}/jam tambahan
-                          </div>
-                        )}
-                        
-                        <div className="text-gray-400">
-                          {pricing.delivery_fee > 0 
-                            ? `Antar: Rp${pricing.delivery_fee.toLocaleString()}` 
-                            : 'Antar: Gratis'}
-                        </div>
-                        <div className="text-gray-400">
-                          {pricing.deposit_amount > 0 && `Deposit: Rp${pricing.deposit_amount.toLocaleString()}`}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
-              
-              {selectedPricing && selectedPricing.deposit_amount > 0 && (
-                <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-800">
-                  <div className="flex items-center text-sm text-blue-400">
-                    <Info size={16} className="mr-2" />
-                    <span>
-                      Deposit sebesar Rp{selectedPricing.deposit_amount.toLocaleString()} akan dikembalikan setelah Playbox dikembalikan dalam kondisi baik
-                    </span>
-                  </div>
-                </div>
+                <PricingPackageSelector
+                  pricingOptions={pricingOptions}
+                  selectedPricing={selectedPricing}
+                  onSelectPricing={setSelectedPricing}
+                  selectedTime={formData.start_time}
+                  selectedDuration={formData.duration_hours}
+                  isWeekend={isWeekend}
+                  pickupAtStudio={pickupAtStudio}
+                />
               )}
             </div>
             
@@ -657,71 +657,15 @@ const PlayboxReservationPage = () => {
             <div className="bg-gray-800 rounded-lg p-6 mb-6">
               <h2 className="text-xl font-bold mb-4">3. Jadwal Reservasi</h2>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label className="block text-gray-400 mb-2">Tanggal</label>
-                  <div className="relative">
-                    <input
-                      type="date"
-                      name="reservation_date"
-                      value={formData.reservation_date}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
-                      min={new Date().toISOString().split('T')[0]}
-                      required
-                    />
-                    <Calendar className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-gray-400 mb-2">Durasi</label>
-                  <div className="relative">
-                    <select
-                      name="duration_hours"
-                      value={formData.duration_hours}
-                      onChange={handleInputChange}
-                      className="w-full bg-gray-700 border border-gray-600 rounded p-2 pl-9"
-                      required
-                    >
-                      {durationOptions.map(option => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <Clock className="absolute left-3 top-2.5 text-gray-400" size={16} />
-                  </div>
-                </div>
-              </div>
-              
-              {formData.reservation_date && (
-                <div>
-                  <label className="block text-gray-400 mb-2">Jam Mulai</label>
-                  <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-7 gap-2">
-                    {availableTimeSlots.map(slot => (
-                      <button
-                        key={slot.hour}
-                        type="button"
-                        onClick={() => setFormData(prev => ({ ...prev, start_time: `${String(slot.hour).padStart(2, '0')}:00` }))}
-                        className={`py-2 text-center rounded ${
-                          !slot.available 
-                            ? 'bg-red-900 bg-opacity-30 text-gray-500 cursor-not-allowed' 
-                            : formData.start_time === `${String(slot.hour).padStart(2, '0')}:00`
-                              ? 'bg-blue-600'
-                              : 'bg-gray-700 hover:bg-gray-600'
-                        }`}
-                        disabled={!slot.available}
-                      >
-                        {`${String(slot.hour).padStart(2, '0')}:00`}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-2">
-                    * Slot waktu berwarna merah sudah dipesan
-                  </p>
-                </div>
-              )}
+              <EnhancedReservationScheduler
+                availableTimeSlots={availableTimeSlots}
+                onDateChange={(date) => setFormData(prev => ({ ...prev, reservation_date: date }))}
+                onTimeSelect={(time) => setFormData(prev => ({ ...prev, start_time: time }))}
+                onDurationChange={(hours) => setFormData(prev => ({ ...prev, duration_hours: hours }))}
+                selectedDate={formData.reservation_date}
+                selectedTime={formData.start_time}
+                selectedDuration={formData.duration_hours}
+              />
             </div>
             
             {/* Step 4: Customer Information */}
@@ -855,83 +799,83 @@ const PlayboxReservationPage = () => {
              <h2 className="text-xl font-bold mb-4">5. Metode Pembayaran</h2>
              
              <div className="space-y-3 mb-4">
-{paymentMethods.map(method => (
-  <label 
-    key={method.id} 
-    className={`block bg-gray-700 border ${
-      formData.payment_method === method.id 
-        ? 'border-blue-500' 
-        : 'border-gray-600'
-    } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
-  >
-    <div className="flex items-center">
-      <input
-        type="radio"
-        name="payment_method"
-        value={method.id}
-        checked={formData.payment_method === method.id}
-        onChange={handleInputChange}
-        className="mr-3"
-      />
-      <span>{method.name}</span>
-    </div>
-  </label>
-))}
+              {paymentMethods.map(method => (
+                <label 
+                  key={method.id} 
+                  className={`block bg-gray-700 border ${
+                    formData.payment_method === method.id 
+                      ? 'border-blue-500' 
+                      : 'border-gray-600'
+                  } rounded-lg p-3 cursor-pointer hover:border-blue-500`}
+                >
+                  <div className="flex items-center">
+                    <input
+                      type="radio"
+                      name="payment_method"
+                      value={method.id}
+                      checked={formData.payment_method === method.id}
+                      onChange={handleInputChange}
+                      className="mr-3"
+                    />
+                    <span>{method.name}</span>
+                  </div>
+                </label>
+              ))}
 
-{formData.payment_method === 'transfer' && (
-  <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
-    <p className="mb-2 font-semibold text-white">Transfer ke Rekening:</p>
-    <p>Bank: <strong>BCA</strong></p>
-    <p>Atas Nama: <strong>Kenzie Gaming</strong></p>
-    <p>No. Rekening: <strong className="font-mono tracking-widest">1234567890</strong></p>
-<div className="mt-4">
-  <label className="block text-gray-400 mb-2">Upload Bukti Transfer</label>
-  <input 
-    type="file" 
-    name="transfer_proof"
-    accept="image/*,application/pdf"
-    onChange={(e) => setFormData(prev => ({ 
-      ...prev, 
-      transfer_proof: e.target.files[0] 
-    }))}
-    className="w-full bg-gray-800 border border-gray-600 rounded p-2"
-  />
-</div>
-  </div>
-)}
+              {formData.payment_method === 'transfer' && (
+                <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
+                  <p className="mb-2 font-semibold text-white">Transfer ke Rekening:</p>
+                  <p>Bank: <strong>BCA</strong></p>
+                  <p>Atas Nama: <strong>Kenzie Gaming</strong></p>
+                  <p>No. Rekening: <strong className="font-mono tracking-widest">1234567890</strong></p>
+              <div className="mt-4">
+                <label className="block text-gray-400 mb-2">Upload Bukti Transfer</label>
+                <input 
+                  type="file" 
+                  name="transfer_proof"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    transfer_proof: e.target.files[0] 
+                  }))}
+                  className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                />
+              </div>
+                </div>
+              )}
 
-{formData.payment_method === 'qris' && (
-  <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
-    <p className="mb-2 font-semibold text-white">Scan QRIS untuk Pembayaran:</p>
-    <img 
-      src="/qris.jpg" 
-      alt="QRIS Kenzie Gaming"
-      className="w-40 h-auto mx-auto border border-gray-500 rounded mb-4"
-    />
-    <div className="text-center">
-      <a 
-        href="/qris.jpg" 
-        download
-        className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-4 rounded-lg"
-      >
-        Download QRIS
-      </a>
-    </div>
-<div className="mt-4">
-  <label className="block text-gray-400 mb-2">Upload Bukti Pembayaran</label>
-  <input 
-    type="file" 
-    name="qris_proof"
-    accept="image/*,application/pdf"
-    onChange={(e) => setFormData(prev => ({ 
-      ...prev, 
-      qris_proof: e.target.files[0] 
-    }))}
-    className="w-full bg-gray-800 border border-gray-600 rounded p-2"
-  />
-</div>
-  </div>
-)}
+              {formData.payment_method === 'qris' && (
+                <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
+                  <p className="mb-2 font-semibold text-white">Scan QRIS untuk Pembayaran:</p>
+                  <img 
+                    src="/qris.jpg" 
+                    alt="QRIS Kenzie Gaming"
+                    className="w-40 h-auto mx-auto border border-gray-500 rounded mb-4"
+                  />
+                  <div className="text-center">
+                    <a 
+                      href="/qris.jpg" 
+                      download
+                      className="inline-block bg-blue-600 hover:bg-blue-700 text-white text-sm py-2 px-4 rounded-lg"
+                    >
+                      Download QRIS
+                    </a>
+                  </div>
+              <div className="mt-4">
+                <label className="block text-gray-400 mb-2">Upload Bukti Pembayaran</label>
+                <input 
+                  type="file" 
+                  name="qris_proof"
+                  accept="image/*,application/pdf"
+                  onChange={(e) => setFormData(prev => ({ 
+                    ...prev, 
+                    qris_proof: e.target.files[0] 
+                  }))}
+                  className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                />
+              </div>
+                </div>
+              )}
 
              </div>
              
@@ -983,9 +927,11 @@ const PlayboxReservationPage = () => {
                  <div className="border-b border-gray-700 pb-4 mb-4">
                    <h3 className="font-medium">{selectedPricing.name}</h3>
                    <div className="text-sm text-gray-400">
-                     {selectedPricing.is_basic_option 
-                       ? `Rp${selectedPricing.hourly_rate.toLocaleString()}/jam (tanpa paket)` 
-                       : `Paket dasar ${selectedPricing.min_hours} jam`}
+                     {formData.duration_hours === 12 && selectedPricing.package_12h_price 
+                       ? 'Paket 12 jam (harga spesial)' 
+                       : formData.duration_hours === 24 && selectedPricing.package_24h_price 
+                         ? 'Paket 24 jam (harga spesial)'
+                         : `Durasi ${selectedPricing.min_hours} jam + tambahan`}
                    </div>
                  </div>
                )}
@@ -1018,22 +964,32 @@ const PlayboxReservationPage = () => {
                  {selectedPricing && (
                    <>
                      <div className="border-t border-gray-700 pt-3 mt-3">
-                       {selectedPricing.is_basic_option ? (
-                         <div className="flex justify-between">
-                           <span className="text-gray-400">Biaya per Jam (x{formData.duration_hours}):</span>
-                           <span>Rp{(selectedPricing.hourly_rate * formData.duration_hours).toLocaleString()}</span>
-                         </div>
+                       {/* Tampilkan rincian harga berdasarkan jenis paket */}
+                       {formData.duration_hours === 12 && selectedPricing.package_12h_price ? (
+                         <>
+                           <div className="flex justify-between">
+                             <span className="text-gray-400">Paket 12 Jam:</span>
+                             <span>Rp{selectedPricing.package_12h_price.toLocaleString()}</span>
+                           </div>
+                         </>
+                       ) : formData.duration_hours === 24 && selectedPricing.package_24h_price ? (
+                         <>
+                           <div className="flex justify-between">
+                             <span className="text-gray-400">Paket 24 Jam:</span>
+                             <span>Rp{selectedPricing.package_24h_price.toLocaleString()}</span>
+                           </div>
+                         </>
                        ) : (
                          <>
                            <div className="flex justify-between">
-                             <span className="text-gray-400">Paket Dasar:</span>
+                             <span className="text-gray-400">Paket Dasar ({selectedPricing.min_hours} jam):</span>
                              <span>Rp{selectedPricing.base_price.toLocaleString()}</span>
                            </div>
                            
                            {getAdditionalHours() > 0 && (
                              <div className="flex justify-between">
                                <span className="text-gray-400">
-                                 Jam Tambahan ({getAdditionalHours()} jam):
+                                 Jam Tambahan ({getAdditionalHours()} jam × Rp{selectedPricing.hourly_rate.toLocaleString()}):
                                </span>
                                <span>
                                  Rp{(getAdditionalHours() * selectedPricing.hourly_rate).toLocaleString()}
@@ -1057,10 +1013,10 @@ const PlayboxReservationPage = () => {
                          </div>
                        )}
                        
-                       {isWeekend() && selectedPricing.weekend_surcharge > 0 && (
-                         <div className="flex justify-between">
-                           <span className="text-gray-400">Tambahan Akhir Pekan:</span>
-                           <span>Rp{selectedPricing.weekend_surcharge.toLocaleString()}</span>
+                       {isWeekend && selectedPricing.weekend_surcharge > 0 && (
+                         <div className="flex justify-between text-yellow-400">
+                           <span>Tambahan Akhir Pekan ({selectedPricing.weekend_surcharge}%):</span>
+                           <span>+Rp{Math.round(calculateTotalPrice() * selectedPricing.weekend_surcharge / 100).toLocaleString()}</span>
                          </div>
                        )}
                      </div>

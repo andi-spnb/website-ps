@@ -52,8 +52,6 @@ exports.getPricingById = async (req, res) => {
   }
 };
 
-// Membuat data harga Playbox baru
-// Membuat data harga Playbox baru
 exports.createPricing = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -67,7 +65,9 @@ exports.createPricing = async (req, res) => {
       min_hours, 
       delivery_fee, 
       weekend_surcharge, 
-      deposit_amount, 
+      deposit_amount,
+      package_12h_price,
+      package_24h_price,
       is_active 
     } = req.body;
     
@@ -78,7 +78,7 @@ exports.createPricing = async (req, res) => {
       return res.status(400).json({ message: 'Nama, harga dasar, dan tarif per jam wajib diisi' });
     }
     
-    // Buat data harga baru - hapus kolom description
+    // Buat data harga baru
     const newPricing = await PlayboxPricing.create({
       name,
       base_price: parseFloat(base_price),
@@ -87,6 +87,8 @@ exports.createPricing = async (req, res) => {
       delivery_fee: delivery_fee !== undefined ? parseFloat(delivery_fee) : 0,
       weekend_surcharge: weekend_surcharge !== undefined ? parseFloat(weekend_surcharge) : 0,
       deposit_amount: deposit_amount !== undefined ? parseFloat(deposit_amount) : 0,
+      package_12h_price: package_12h_price !== undefined ? parseFloat(package_12h_price) : null,
+      package_24h_price: package_24h_price !== undefined ? parseFloat(package_24h_price) : null,
       is_active: is_active !== undefined ? is_active : true
     }, { transaction });
     
@@ -104,7 +106,6 @@ exports.createPricing = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Update data harga Playbox
 exports.updatePricing = async (req, res) => {
   const transaction = await sequelize.transaction();
@@ -119,7 +120,9 @@ exports.updatePricing = async (req, res) => {
       min_hours, 
       delivery_fee, 
       weekend_surcharge, 
-      deposit_amount, 
+      deposit_amount,
+      package_12h_price,
+      package_24h_price,
       description, 
       is_active 
     } = req.body;
@@ -141,6 +144,8 @@ exports.updatePricing = async (req, res) => {
       delivery_fee: delivery_fee !== undefined ? parseFloat(delivery_fee) : pricing.delivery_fee,
       weekend_surcharge: weekend_surcharge !== undefined ? parseFloat(weekend_surcharge) : pricing.weekend_surcharge,
       deposit_amount: deposit_amount !== undefined ? parseFloat(deposit_amount) : pricing.deposit_amount,
+      package_12h_price: package_12h_price !== undefined ? parseFloat(package_12h_price) : pricing.package_12h_price,
+      package_24h_price: package_24h_price !== undefined ? parseFloat(package_24h_price) : pricing.package_24h_price,
       description: description !== undefined ? description : pricing.description,
       is_active: is_active !== undefined ? is_active : pricing.is_active
     }, { transaction });
