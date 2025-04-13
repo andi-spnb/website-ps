@@ -32,6 +32,8 @@ const PricingManagement = () => {
     delivery_fee: '',
     weekend_surcharge: '',
     deposit_amount: '',
+    package_12h_price: '',
+    package_24h_price: '',
     is_playbox: true  // Tanda untuk membedakan harga PlayStation vs Playbox
   });
   
@@ -114,6 +116,8 @@ const PricingManagement = () => {
             delivery_fee: 20000,
             weekend_surcharge: 10000,
             deposit_amount: 300000,
+            package_12h_price: 180000,
+            package_24h_price: 320000,
             is_playbox: true
           },
           {
@@ -125,6 +129,8 @@ const PricingManagement = () => {
             delivery_fee: 0,
             weekend_surcharge: 20000,
             deposit_amount: 500000,
+            package_12h_price: null,
+            package_24h_price: null,
             is_playbox: true
           }
         ]);
@@ -158,7 +164,7 @@ const PricingManagement = () => {
     let finalValue = value;
 
     // Convert numeric inputs to numbers
-    if (['base_price', 'hourly_rate', 'min_hours', 'delivery_fee', 'weekend_surcharge', 'deposit_amount'].includes(name)) {
+    if (['base_price', 'hourly_rate', 'min_hours', 'delivery_fee', 'weekend_surcharge', 'deposit_amount', 'package_12h_price', 'package_24h_price'].includes(name)) {
       finalValue = value === '' ? '' : parseFloat(value);
     }
 
@@ -194,6 +200,8 @@ const PricingManagement = () => {
           delivery_fee: '',
           weekend_surcharge: '',
           deposit_amount: '',
+          package_12h_price: '',
+          package_24h_price: '',
           is_playbox: true
         });
       }
@@ -264,6 +272,8 @@ const PricingManagement = () => {
         delivery_fee: price.delivery_fee,
         weekend_surcharge: price.weekend_surcharge,
         deposit_amount: price.deposit_amount,
+        package_12h_price: price.package_12h_price || '',
+        package_24h_price: price.package_24h_price || '',
         is_playbox: true
       });
     }
@@ -510,6 +520,7 @@ const PricingManagement = () => {
                     <th className="py-3 px-4 text-center">Min Jam</th>
                     <th className="py-3 px-4 text-right">Biaya Antar</th>
                     <th className="py-3 px-4 text-right">Deposit</th>
+                    <th className="py-3 px-4 text-left">Paket Spesial</th>
                     <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -531,6 +542,24 @@ const PricingManagement = () => {
                         {price.delivery_fee > 0 ? formatRupiah(price.delivery_fee) : 'Gratis'}
                       </td>
                       <td className="py-3 px-4 text-right">{formatRupiah(price.deposit_amount)}</td>
+                      <td className="py-3 px-4">
+                        <div className="space-y-1 text-sm">
+                          {price.package_12h_price ? (
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 bg-green-900 bg-opacity-30 rounded-full mr-1"></div>
+                              <span>12 Jam: {formatRupiah(price.package_12h_price)}</span>
+                            </div>
+                          ) : (
+                            <div className="text-gray-500">-</div>
+                          )}
+                          {price.package_24h_price ? (
+                            <div className="flex items-center">
+                              <div className="w-4 h-4 bg-blue-900 bg-opacity-30 rounded-full mr-1"></div>
+                              <span>24 Jam: {formatRupiah(price.package_24h_price)}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => openEditModal(price)}
@@ -776,7 +805,7 @@ const PricingManagement = () => {
                   </p>
                 </div>
                 
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Jumlah Deposit (Rp)</label>
                   <input
                     type="number"
@@ -789,6 +818,38 @@ const PricingManagement = () => {
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Deposit yang dikembalikan setelah Playbox dikembalikan dalam kondisi baik
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
+                  <input
+                    type="number"
+                    name="package_12h_price"
+                    value={playboxFormData.package_12h_price || ''}
+                    onChange={handlePlayboxInputChange}
+                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                    placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
+                  <input
+                    type="number"
+                    name="package_24h_price"
+                    value={playboxFormData.package_24h_price || ''}
+                    onChange={handlePlayboxInputChange}
+                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                    placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
                   </p>
                 </div>
                 
@@ -1034,7 +1095,7 @@ const PricingManagement = () => {
                   </p>
                 </div>
                 
-                <div className="mb-6">
+                <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Jumlah Deposit (Rp)</label>
                   <input
                     type="number"
@@ -1047,6 +1108,38 @@ const PricingManagement = () => {
                   />
                   <p className="text-xs text-gray-400 mt-1">
                     Deposit yang dikembalikan setelah Playbox dikembalikan dalam kondisi baik
+                  </p>
+                </div>
+
+                <div className="mb-4">
+                  <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
+                  <input
+                    type="number"
+                    name="package_12h_price"
+                    value={playboxFormData.package_12h_price || ''}
+                    onChange={handlePlayboxInputChange}
+                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                    placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
+                  </p>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
+                  <input
+                    type="number"
+                    name="package_24h_price"
+                    value={playboxFormData.package_24h_price || ''}
+                    onChange={handlePlayboxInputChange}
+                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                    placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
+                    min="0"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
                   </p>
                 </div>
                 

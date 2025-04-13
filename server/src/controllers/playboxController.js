@@ -394,7 +394,7 @@ exports.addGameToPlaybox = async (req, res) => {
 
 // ADMIN FUNCTIONS
 
-// Confirm reservation (admin only)
+// Fungsi confirmReservation yang telah diperbaiki
 exports.confirmReservation = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -420,14 +420,13 @@ exports.confirmReservation = async (req, res) => {
     // Update reservation status
     await reservation.update({
       status: 'Confirmed',
-      payment_status: 'Paid',
+      payment_status: reservation.payment_proof_url ? 'Paid' : 'Pending',
       staff_id
     }, { transaction });
     
-    // Update playbox status to reflect pending reservation
-    await reservation.Playbox.update({
-      status: 'In Use' // We can also create a new status like 'Reserved' if needed
-    }, { transaction });
+    // PERBAIKAN: Jangan ubah status Playbox menjadi 'In Use'
+    // Status Playbox tetap 'Available' sehingga masih bisa dipesan untuk slot waktu lain
+    // Status Playbox hanya akan berubah ketika benar-benar sedang digunakan
     
     await transaction.commit();
     
@@ -444,7 +443,128 @@ exports.confirmReservation = async (req, res) => {
   }
 };
 
-// Update reservation status (admin only)
+// Fungsi getAvailablePlayboxes yang telah diperbaiki
+exports.getAvailablePlayboxes = async (req, res) => {
+  try {
+    const { date } = req.query;
+    
+    // Get all playboxes
+    const playboxes = await Playbox.findAll({
+      include: [{
+        model: PlayboxGame,
+        where: { is_featured: true },
+        required: false,
+        limit: 5
+      }],
+      order: [['playbox_name', 'ASC']]
+    });
+    
+    if (date) {
+      // Perbaikan: Gunakan parameter 'date' yang diterima
+      const selectedDate = new Date(date);
+      selectedDate.setHours(0, 0, 0, 0);
+      
+      const endDate = new Date(selectedDate);
+      endDate.setHours(23, 59, 59, 999);
+      
+      // Get active reservations for the date
+      const reservations = await PlayboxReservation.findAll({
+        where: {
+          // Gunakan between dengan tanggal yang benar (selectedDate hingga endDate)
+          [Op.or]: [
+            {
+              start_time: {
+                [Op.between]: [selectedDate, endDate]
+              }
+            },
+            {
+              end_time: {
+                [Op.between]: [selectedDate, endDate]
+              }
+            },
+            {
+              // Tangkap juga reservasi yang dimulai sebelum dan berakhir setelah tanggal yang dipilih
+              [Op.and]: [
+                { start_time: { [Op.lt]: selectedDate } },
+                { end_time: { [Op.gt]: endDate } }
+              ]
+            }
+          ],
+          status: {
+            [Op.notIn]: ['Cancelled', 'Completed']
+          }
+        },
+        attributes: ['playbox_id', 'start_time', 'end_time', 'status', 'booking_code']
+      });
+      
+      // Proses setiap playbox
+      const result = playboxes.map(playbox => {
+        const playboxData = playbox.toJSON();
+        const playboxReservations = reservations.filter(r => r.playbox_id === playbox.playbox_id);
+        
+        // Buat daftar slot waktu dengan status
+        const timeSlots = [];
+        for (let hour = 8; hour < 22; hour++) {
+          const slotStart = new Date(selectedDate);
+          slotStart.setHours(hour, 0, 0);
+          
+          const slotEnd = new Date(selectedDate);
+          slotEnd.setHours(hour + 1, 0, 0);
+          
+          // Cek apakah slot waktu terisi oleh reservasi
+          const isBooked = playboxReservations.some(r => {
+            const reservationStart = new Date(r.start_time);
+            const reservationEnd = new Date(r.end_time);
+            
+            // Slot waktu tumpang tindih dengan reservasi jika:
+            return (
+              // Slot dimulai di tengah reservasi
+              (slotStart >= reservationStart && slotStart < reservationEnd) ||
+              // Slot berakhir di tengah reservasi
+              (slotEnd > reservationStart && slotEnd <= reservationEnd) ||
+              // Slot sepenuhnya mencakup waktu reservasi
+              (slotStart <= reservationStart && slotEnd >= reservationEnd)
+            );
+          });
+          
+          timeSlots.push({
+            hour,
+            startTime: `${String(hour).padStart(2, '0')}:00`,
+            available: !isBooked
+          });
+        }
+        
+        // Tentukan status Playbox untuk hari ini berdasarkan slot yang tersedia
+        const availableSlots = timeSlots.filter(slot => slot.available).length;
+        
+        if (availableSlots === 0) {
+          playboxData.dailyStatus = 'Fully Booked';
+        } else if (availableSlots < timeSlots.length) {
+          playboxData.dailyStatus = 'Partially Available';
+        } else {
+          playboxData.dailyStatus = 'Available';
+        }
+        
+        playboxData.timeSlots = timeSlots;
+        return playboxData;
+      });
+      
+      // PERBAIKAN: Playbox tersedia untuk booking jika masih ada slot waktu yang tersedia
+      // Jadi tidak memfilter berdasarkan status "Available" atau "In Use"
+      // Sebaliknya, kita kembalikan semua Playbox dan biarkan frontend menampilkan slot waktu yang tersedia
+      res.json(result);
+    } else {
+      // Jika tidak ada parameter date, tampilkan semua playbox
+      // PERBAIKAN: Frontend harus menampilkan slot waktu yang tersedia
+      res.json(playboxes);
+    }
+  } catch (error) {
+    console.error('Error fetching available playboxes:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Fungsi updateReservationStatus yang telah diperbaiki
 exports.updateReservationStatus = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -469,37 +589,72 @@ exports.updateReservationStatus = async (req, res) => {
       notes: notes ? `${reservation.notes || ''}\n${notes}` : reservation.notes
     }, { transaction });
     
-    let playboxStatus;
-switch (status) {
-  case 'In Preparation':
-    playboxStatus = 'Maintenance'; // Preparing
-    break;
-  case 'In Transit':
-    playboxStatus = 'In Transit';
-    break;
-  case 'In Use':
-    playboxStatus = 'In Use';
-    break;
-  case 'Returning':
-    playboxStatus = 'In Transit';
-    break;
-  case 'Completed':
-    playboxStatus = 'Available';
-    // Jika completed, set actual_end_time
-    await reservation.update({
-      actual_end_time: new Date()
-    }, { transaction });
-    break;
-  case 'Cancelled':
-    playboxStatus = 'Available';
-    break;
-  default:
-    playboxStatus = reservation.Playbox.status;
-}
+    // Hanya update status Playbox jika benar-benar sedang digunakan
+    let playboxStatus = reservation.Playbox.status;
     
-    await reservation.Playbox.update({
-      status: playboxStatus
-    }, { transaction });
+    // PERBAIKAN: Hanya ubah status Playbox pada kondisi tertentu
+    switch (status) {
+      case 'In Use':
+        // Playbox sedang aktif digunakan pada slot waktu tertentu
+        // Status fisik Playbox diubah menjadi 'In Use'
+        playboxStatus = 'In Use';
+        break;
+      case 'In Transit':
+        // Playbox sedang dalam pengiriman
+        playboxStatus = 'In Transit';
+        break;
+      case 'Returning':
+        // Playbox sedang dikembalikan
+        playboxStatus = 'In Transit';
+        break;
+      case 'Completed':
+      case 'Cancelled':
+        // Cek apakah masih ada reservasi aktif lain untuk Playbox ini
+        // yang sedang dalam penggunaan pada hari ini atau dalam proses
+        const activeReservations = await PlayboxReservation.count({
+          where: {
+            playbox_id: reservation.playbox_id,
+            reservation_id: { [Op.ne]: reservation_id }, // Bukan reservasi saat ini
+            status: { [Op.in]: ['In Use', 'In Transit'] }, // Hanya status yang mempengaruhi fisik Playbox
+            // Cek reservasi yang sedang aktif hari ini
+            [Op.or]: [
+              {
+                start_time: {
+                  [Op.lte]: new Date()
+                },
+                end_time: {
+                  [Op.gte]: new Date()
+                }
+              }
+            ]
+          },
+          transaction
+        });
+        
+        // Jika tidak ada reservasi aktif lain yang sedang menggunakan Playbox secara fisik,
+        // set status Playbox kembali ke Available
+        if (activeReservations === 0) {
+          playboxStatus = 'Available';
+        }
+        
+        if (status === 'Completed') {
+          // Jika completed, set actual_end_time
+          await reservation.update({
+            actual_end_time: new Date()
+          }, { transaction });
+        }
+        break;
+      default:
+        // Status lain tidak mengubah status Playbox
+        break;
+    }
+    
+    // Update status Playbox jika berubah
+    if (playboxStatus !== reservation.Playbox.status) {
+      await reservation.Playbox.update({
+        status: playboxStatus
+      }, { transaction });
+    }
     
     await transaction.commit();
     

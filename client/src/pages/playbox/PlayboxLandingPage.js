@@ -9,9 +9,179 @@ import {
   Star, 
   CheckCircle, 
   Users,
-  ArrowRight
+  ArrowRight,
+  X,
+  AlertCircle
 } from 'lucide-react';
 import api from '../../services/api';
+
+// Fungsi untuk mengecek apakah suatu tanggal adalah hari ini
+const isToday = (date) => {
+  const today = new Date();
+  return date.getDate() === today.getDate() &&
+    date.getMonth() === today.getMonth() &&
+    date.getFullYear() === today.getFullYear();
+};
+
+// Komponen PlayboxCard yang akan menampilkan status ketersediaan berdasarkan slot waktu
+const PlayboxCard = ({ playbox }) => {
+  const [availabilityStatus, setAvailabilityStatus] = useState({
+    isAvailableToday: true,
+    availableSlots: [],
+    statusText: 'Tersedia'
+  });
+  
+  useEffect(() => {
+    // Cek ketersediaan untuk hari ini
+    const checkAvailability = async () => {
+      try {
+        const today = new Date().toISOString().split('T')[0];
+        const response = await api.get(`/playbox/public/available?date=${today}`);
+        
+        const playboxData = response.data.find(p => p.playbox_id === playbox.playbox_id);
+        
+        if (playboxData && playboxData.timeSlots) {
+          const availableSlots = playboxData.timeSlots.filter(slot => slot.available);
+          
+          setAvailabilityStatus({
+            isAvailableToday: availableSlots.length > 0,
+            availableSlots: availableSlots,
+            statusText: availableSlots.length === 0 
+              ? 'Full Booking Hari Ini' 
+              : availableSlots.length < playboxData.timeSlots.length 
+                ? 'Tersedia Beberapa Slot' 
+                : 'Tersedia Penuh'
+          });
+        }
+      } catch (err) {
+        console.error('Error checking availability:', err);
+      }
+    };
+    
+    // Cek ketersediaan terlepas dari status Playbox
+    // Playbox bisa saja status Maintenance tapi kita masih bisa memesan untuk besok
+    checkAvailability();
+  }, [playbox.playbox_id]);
+  
+  // Tentukan warna label status
+  let statusColor = 'bg-green-900 text-green-400'; // Default: Tersedia
+  
+  if (playbox.status === 'Maintenance') {
+    statusColor = 'bg-red-900 text-red-400'; // Maintenance
+  } else if (!availabilityStatus.isAvailableToday) {
+    statusColor = 'bg-orange-900 text-orange-400'; // Full Booking
+  } else if (availabilityStatus.availableSlots.length < 14) { // Asumsi 14 slot waktu (8-22)
+    statusColor = 'bg-yellow-900 text-yellow-400'; // Tersedia Sebagian
+  }
+  
+  // Tentukan status yang ditampilkan
+  let displayStatus = playbox.status;
+  
+  if (playbox.status === 'Available' || playbox.status === 'In Use') {
+    // Kalau status fisik Available/In Use, tampilkan ketersediaan slot waktu
+    displayStatus = availabilityStatus.statusText;
+  } else if (playbox.status === 'Maintenance') {
+    displayStatus = 'Dalam Perbaikan';
+  } else if (playbox.status === 'In Transit') {
+    displayStatus = 'Dalam Perjalanan';
+  }
+  
+  return (
+    <div className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-all">
+      <div className="h-48 bg-gray-900 relative">
+        {playbox.image_url ? (
+          <img 
+            src={playbox.image_url} 
+            alt={playbox.playbox_name} 
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <Monitor size={64} className="text-gray-700" />
+          </div>
+        )}
+        <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs ${statusColor}`}>
+          {displayStatus}
+        </div>
+      </div>
+      
+      <div className="p-6">
+        <h3 className="text-xl font-bold mb-2">{playbox.playbox_name}</h3>
+        <div className="mb-4">
+          <div className="flex items-center text-gray-400 mb-1">
+            <Monitor size={14} className="mr-2" />
+            <span>TV {playbox.tv_size} + {playbox.ps4_model}</span>
+          </div>
+          <div className="flex items-center text-gray-400 mb-1">
+            <Users size={14} className="mr-2" />
+            <span>{playbox.controllers_count} Controller</span>
+          </div>
+          {playbox.location && (
+            <div className="flex items-center text-gray-400">
+              <MapPin size={14} className="mr-2" />
+              <span>{playbox.location}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Tampilkan informasi slot tersedia jika ada */}
+        {availabilityStatus.isAvailableToday && availabilityStatus.availableSlots.length > 0 && (
+          <div className="mb-4 bg-gray-700 p-2 rounded">
+            <div className="text-sm text-gray-300 mb-1">Slot tersedia hari ini:</div>
+            <div className="flex flex-wrap gap-1">
+              {availabilityStatus.availableSlots.slice(0, 5).map(slot => (
+                <span key={slot.hour} className="text-xs bg-blue-900 text-blue-300 px-2 py-1 rounded">
+                  {slot.startTime}
+                </span>
+              ))}
+              {availabilityStatus.availableSlots.length > 5 && (
+                <span className="text-xs bg-gray-800 text-gray-300 px-2 py-1 rounded">
+                  +{availabilityStatus.availableSlots.length - 5} lagi
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+        
+        {/* Tampilkan informasi jika Full Booking hari ini */}
+        {!availabilityStatus.isAvailableToday && playbox.status !== 'Maintenance' && (
+          <div className="mb-4 bg-gray-700 p-2 rounded flex items-start">
+            <AlertCircle size={16} className="text-orange-400 mr-2 mt-0.5 flex-shrink-0" />
+            <div className="text-sm text-gray-300">
+              Full booking hari ini, tetapi tersedia untuk pemesanan di hari lain
+            </div>
+          </div>
+        )}
+        
+        {playbox.PlayboxGames && playbox.PlayboxGames.length > 0 && (
+          <div className="mb-4">
+            <div className="text-sm text-gray-400 mb-2">Game Terpopuler:</div>
+            <div className="space-y-1">
+              {playbox.PlayboxGames.slice(0, 3).map(game => (
+                <div key={game.playbox_game_id} className="flex items-center">
+                  <Star size={12} className="text-yellow-500 mr-2" />
+                  <span>{game.game_name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <Link 
+          to={`/playbox/reservation?id=${playbox.playbox_id}`}
+          className={`w-full py-2 rounded text-center font-medium block ${
+            playbox.status === 'Maintenance'
+              ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700 text-white'
+          }`}
+          onClick={(e) => playbox.status === 'Maintenance' && e.preventDefault()}
+        >
+          {playbox.status === 'Maintenance' ? 'Dalam Perbaikan' : 'Pesan Sekarang'}
+        </Link>
+      </div>
+    </div>
+  );
+};
 
 const PlayboxLandingPage = () => {
   const [playboxes, setPlayboxes] = useState([]);
@@ -283,77 +453,7 @@ const PlayboxLandingPage = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {playboxes.map(playbox => (
-              <div 
-                key={playbox.playbox_id} 
-                className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700 hover:border-blue-500 transition-all"
-              >
-                <div className="h-48 bg-gray-900 relative">
-                  {playbox.image_url ? (
-                    <img 
-                      src={playbox.image_url} 
-                      alt={playbox.playbox_name} 
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Monitor size={64} className="text-gray-700" />
-                    </div>
-                  )}
-                  <div className={`absolute top-3 right-3 px-3 py-1 rounded-full text-xs ${
-                    playbox.status === 'Available' 
-                      ? 'bg-green-900 text-green-400' 
-                      : 'bg-red-900 text-red-400'
-                  }`}>
-                    {playbox.status === 'Available' ? 'Tersedia' : 'Tidak Tersedia'}
-                  </div>
-                </div>
-                
-                <div className="p-6">
-                  <h3 className="text-xl font-bold mb-2">{playbox.playbox_name}</h3>
-                  <div className="mb-4">
-                    <div className="flex items-center text-gray-400 mb-1">
-                      <Monitor size={14} className="mr-2" />
-                      <span>TV {playbox.tv_size} + {playbox.ps4_model}</span>
-                    </div>
-                    <div className="flex items-center text-gray-400 mb-1">
-                      <Users size={14} className="mr-2" />
-                      <span>{playbox.controllers_count} Controller</span>
-                    </div>
-                    {playbox.location && (
-                      <div className="flex items-center text-gray-400">
-                        <MapPin size={14} className="mr-2" />
-                        <span>{playbox.location}</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  {playbox.PlayboxGames && playbox.PlayboxGames.length > 0 && (
-                    <div className="mb-4">
-                      <div className="text-sm text-gray-400 mb-2">Game Terpopuler:</div>
-                      <div className="space-y-1">
-                        {playbox.PlayboxGames.slice(0, 3).map(game => (
-                          <div key={game.playbox_game_id} className="flex items-center">
-                            <Star size={12} className="text-yellow-500 mr-2" />
-                            <span>{game.game_name}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Link 
-                    to={`/playbox/reservation?id=${playbox.playbox_id}`}
-                    className={`w-full py-2 rounded text-center font-medium block ${
-                      playbox.status === 'Available' 
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                        : 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                    }`}
-                    disabled={playbox.status !== 'Available'}
-                  >
-                    {playbox.status === 'Available' ? 'Pesan Sekarang' : 'Tidak Tersedia'}
-                  </Link>
-                </div>
-              </div>
+              <PlayboxCard key={playbox.playbox_id} playbox={playbox} />
             ))}
           </div>
         )}
