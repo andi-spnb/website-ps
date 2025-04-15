@@ -51,7 +51,6 @@ exports.getPricingById = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 exports.createPricing = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -68,14 +67,43 @@ exports.createPricing = async (req, res) => {
       deposit_amount,
       package_12h_price,
       package_24h_price,
-      is_active 
+      is_active,
+      // Field baru untuk paket tetap
+      is_fixed_package,
+      fixed_start_time,
+      fixed_end_time
     } = req.body;
+    
+    // Hitung durasi tetap jika ini adalah paket tetap
+    let fixed_duration = null;
+    if (is_fixed_package && fixed_start_time && fixed_end_time) {
+      // Konversi waktu ke menit untuk menghitung durasi
+      const startParts = fixed_start_time.split(':').map(Number);
+      const endParts = fixed_end_time.split(':').map(Number);
+      
+      let startMinutes = startParts[0] * 60 + startParts[1];
+      let endMinutes = endParts[0] * 60 + endParts[1];
+      
+      // Jika waktu akhir lebih kecil dari waktu mulai, berarti melewati tengah malam
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60; // Tambah 24 jam dalam menit
+      }
+      
+      fixed_duration = Math.round((endMinutes - startMinutes) / 60);
+    }
     
     // Validasi data
     if (!name || base_price === undefined || hourly_rate === undefined) {
       console.log("Validation failed: missing required fields");
       await transaction.rollback();
       return res.status(400).json({ message: 'Nama, harga dasar, dan tarif per jam wajib diisi' });
+    }
+    
+    // Validasi tambahan untuk paket tetap
+    if (is_fixed_package && (!fixed_start_time || !fixed_end_time)) {
+      console.log("Validation failed: fixed package missing time details");
+      await transaction.rollback();
+      return res.status(400).json({ message: 'Paket tetap harus diisi dengan waktu mulai dan selesai' });
     }
     
     // Buat data harga baru
@@ -89,7 +117,12 @@ exports.createPricing = async (req, res) => {
       deposit_amount: deposit_amount !== undefined ? parseFloat(deposit_amount) : 0,
       package_12h_price: package_12h_price !== undefined ? parseFloat(package_12h_price) : null,
       package_24h_price: package_24h_price !== undefined ? parseFloat(package_24h_price) : null,
-      is_active: is_active !== undefined ? is_active : true
+      is_active: is_active !== undefined ? is_active : true,
+      // Field baru untuk paket tetap
+      is_fixed_package: is_fixed_package || false,
+      fixed_start_time: fixed_start_time || null,
+      fixed_end_time: fixed_end_time || null,
+      fixed_duration: fixed_duration
     }, { transaction });
     
     console.log("Successfully created new pricing with ID:", newPricing.price_id);
@@ -106,7 +139,6 @@ exports.createPricing = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-// Update data harga Playbox
 exports.updatePricing = async (req, res) => {
   const transaction = await sequelize.transaction();
   
@@ -124,7 +156,11 @@ exports.updatePricing = async (req, res) => {
       package_12h_price,
       package_24h_price,
       description, 
-      is_active 
+      is_active,
+      // Field baru untuk paket tetap
+      is_fixed_package,
+      fixed_start_time,
+      fixed_end_time
     } = req.body;
     
     const pricing = await PlayboxPricing.findByPk(req.params.id, { transaction });
@@ -133,6 +169,24 @@ exports.updatePricing = async (req, res) => {
       console.log(`Pricing with ID ${req.params.id} not found`);
       await transaction.rollback();
       return res.status(404).json({ message: 'Data harga tidak ditemukan' });
+    }
+    
+    // Hitung durasi tetap jika ini adalah paket tetap
+    let fixed_duration = null;
+    if (is_fixed_package && fixed_start_time && fixed_end_time) {
+      // Konversi waktu ke menit untuk menghitung durasi
+      const startParts = fixed_start_time.split(':').map(Number);
+      const endParts = fixed_end_time.split(':').map(Number);
+      
+      let startMinutes = startParts[0] * 60 + startParts[1];
+      let endMinutes = endParts[0] * 60 + endParts[1];
+      
+      // Jika waktu akhir lebih kecil dari waktu mulai, berarti melewati tengah malam
+      if (endMinutes < startMinutes) {
+        endMinutes += 24 * 60; // Tambah 24 jam dalam menit
+      }
+      
+      fixed_duration = Math.round((endMinutes - startMinutes) / 60);
     }
     
     // Update data
@@ -147,7 +201,12 @@ exports.updatePricing = async (req, res) => {
       package_12h_price: package_12h_price !== undefined ? parseFloat(package_12h_price) : pricing.package_12h_price,
       package_24h_price: package_24h_price !== undefined ? parseFloat(package_24h_price) : pricing.package_24h_price,
       description: description !== undefined ? description : pricing.description,
-      is_active: is_active !== undefined ? is_active : pricing.is_active
+      is_active: is_active !== undefined ? is_active : pricing.is_active,
+      // Field baru untuk paket tetap
+      is_fixed_package: is_fixed_package !== undefined ? is_fixed_package : pricing.is_fixed_package,
+      fixed_start_time: fixed_start_time !== undefined ? fixed_start_time : pricing.fixed_start_time,
+      fixed_end_time: fixed_end_time !== undefined ? fixed_end_time : pricing.fixed_end_time,
+      fixed_duration: fixed_duration !== null ? fixed_duration : pricing.fixed_duration
     }, { transaction });
     
     console.log(`Successfully updated pricing ID: ${pricing.price_id}`);
@@ -164,7 +223,6 @@ exports.updatePricing = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
-
 // Delete data harga Playbox
 exports.deletePricing = async (req, res) => {
   const transaction = await sequelize.transaction();

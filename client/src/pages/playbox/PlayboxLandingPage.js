@@ -259,10 +259,10 @@ const PlayboxLandingPage = () => {
         <div className="container mx-auto px-4 py-24 relative z-10">
           <div className="max-w-3xl">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-white mb-6">
-              PlayStation 4 & TV yang Bisa Dibawa Kemana Saja
+              PLAYBOX KENZIE GAMING
             </h1>
             <p className="text-xl text-gray-200 mb-8">
-              Nikmati pengalaman bermain PlayStation 4 kapan saja dan di mana saja dengan Playbox, PS4 portabel lengkap dengan TV dan controller.
+              Nikmati pengalaman bermain PlayStation 4 kapan saja dan di mana saja dengan Playbox, PS4 portabel lengkap dengan TV dan controller. TINGAL CULUK..
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link 
@@ -311,7 +311,7 @@ const PlayboxLandingPage = () => {
             </div>
             <h3 className="text-xl font-bold mb-2">Fleksibel</h3>
             <p className="text-gray-400">
-              Sewa sesuai kebutuhan Anda, mulai dari 1 jam hingga beberapa hari untuk acara atau kompetisi.
+              Sewa sesuai kebutuhan Anda, mulai dari 3 jam hingga beberapa hari untuk acara atau kompetisi.
             </p>
           </div>
           
@@ -322,6 +322,15 @@ const PlayboxLandingPage = () => {
             <h3 className="text-xl font-bold mb-2">Diantar ke Lokasi</h3>
             <p className="text-gray-400">
               Kami akan mengantarkan Playbox ke alamat Anda dan membantu pemasangan hingga siap digunakan.
+            </p>
+          </div>
+          <div className="bg-gray-800 rounded-lg p-6 text-center">
+            <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <MapPin size={28} className="text-white" />
+            </div>
+            <h3 className="text-xl font-bold mb-2">Ambil Di Lokasi</h3>
+            <p className="text-gray-400">
+            Anda dapat mengambil Playbox ke Studio kami.
             </p>
           </div>
         </div>
@@ -353,7 +362,7 @@ const PlayboxLandingPage = () => {
             </div>
             <h3 className="text-lg font-bold mb-3">Isi Form Pemesanan</h3>
             <p className="text-gray-400">
-              Isi detail pemesanan termasuk tanggal, durasi, dan alamat pengantaran.
+              Isi detail pemesanan termasuk tanggal, durasi, dan alamat pengantaran/pengambilan.
             </p>
           </div>
           
@@ -373,7 +382,7 @@ const PlayboxLandingPage = () => {
             </div>
             <h3 className="text-lg font-bold mb-3">Nikmati Gaming</h3>
             <p className="text-gray-400">
-              Playbox diantar ke lokasi Anda dan siap untuk dimainkan!
+              Playbox siap untuk dimainkan!
             </p>
           </div>
         </div>
@@ -472,7 +481,7 @@ const PlayboxLandingPage = () => {
           <div className="bg-gray-800 rounded-lg p-6">
             <h3 className="text-lg font-bold mb-2">Berapa lama saya bisa menyewa Playbox?</h3>
             <p className="text-gray-400">
-              Anda dapat menyewa Playbox mulai dari 1 jam hingga beberapa hari. Durasi minimum penyewaan adalah 1 jam.
+              Anda dapat menyewa Playbox mulai dari 3 jam hingga beberapa hari. Durasi minimum penyewaan adalah 3 jam.
             </p>
           </div>
           

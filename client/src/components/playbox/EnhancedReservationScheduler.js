@@ -9,6 +9,10 @@ const EnhancedReservationScheduler = ({
   selectedDate,
   selectedTime,
   selectedDuration,
+  isFixedTimePackage = false, 
+  fixedStartTime = null,
+  fixedEndTime = null,
+  fixedPackageName = "" 
 }) => {
   const [calendarView, setCalendarView] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -27,14 +31,23 @@ const EnhancedReservationScheduler = ({
   
   // Menghitung durasi valid setiap kali jam mulai berubah
   useEffect(() => {
-    if (!selectedTime) {
+    console.log("EnhancedReservationScheduler render with props:");
+    console.log("isFixedTimePackage:", isFixedTimePackage);
+    console.log("fixedStartTime:", fixedStartTime);
+    console.log("fixedEndTime:", fixedEndTime);
+    console.log("selectedTime:", selectedTime);
+    console.log("selectedDuration:", selectedDuration);
+  }, [isFixedTimePackage, fixedStartTime, fixedEndTime, selectedTime, selectedDuration]);
+  
+  useEffect(() => {
+    if (!selectedTime || isFixedTimePackage) {
       setValidDurations([]);
       return;
     }
     
     const startHour = parseInt(selectedTime.split(':')[0]);
     calculateValidDurations(startHour);
-  }, [selectedTime]);
+  }, [selectedTime, isFixedTimePackage]);
   
   // Menghitung durasi yang valid berdasarkan jam mulai
   const calculateValidDurations = (startHour) => {
@@ -53,10 +66,6 @@ const EnhancedReservationScheduler = ({
     // Misal, jam mulai 22:00, minimal kembali jam 07:00 = (7 - 22) + 24 = 9 jam
     let minDurationForMorning = (NO_RETURN_END - startHour);
     if (minDurationForMorning <= 0) minDurationForMorning += 24;
-    
-    console.log(`Jam mulai: ${startHour}:00`);
-    console.log(`Durasi max sebelum tutup: ${maxDurationBeforeClose} jam (${(startHour + maxDurationBeforeClose) % 24}:00)`);
-    console.log(`Durasi min untuk pagi: ${minDurationForMorning} jam (${(startHour + minDurationForMorning) % 24}:00)`);
     
     // Validasi setiap opsi durasi
     const valid = durationOptions.filter(duration => {
@@ -91,6 +100,9 @@ const EnhancedReservationScheduler = ({
     }
   };
   
+  const formatTime = (hour) => {
+    return `${String(hour).padStart(2, '0')}:00`;
+  };
   // Calculate end time based on selected time and duration
   const getEndTime = () => {
     if (!selectedTime || !selectedDuration) return null;
@@ -160,6 +172,7 @@ const EnhancedReservationScheduler = ({
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   };
+
   
   // Render the days of the month
   const renderDaysOfMonth = () => {
@@ -282,17 +295,20 @@ const EnhancedReservationScheduler = ({
   
   // Handle time slot selection
   const handleTimeSlotSelect = (time) => {
+    // Cek dengan sangat eksplisit bahwa ini bukan paket waktu tetap
+    if (isFixedTimePackage === true) {
+      console.log("Cannot select time for fixed package");
+      return; // Keluar dari fungsi tanpa melakukan apa-apa
+    }
+    
+    // Hanya lanjutkan jika bukan paket tetap
     onTimeSelect(time);
-  };
-  
-  // Format time for display
-  const formatTime = (hour) => {
-    return `${String(hour).padStart(2, '0')}:00`;
+    console.log("Selected time:", time);
   };
   
   return (
     <div className="bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-lg p-6 border border-gray-700 shadow-lg">
-      {/* Date selection */}
+      {/* Date selection - selalu ditampilkan */}
       <div className="mb-6">
         <label className="block text-gray-300 mb-2 font-medium">Tanggal Reservasi</label>
         <div className="relative">
@@ -345,8 +361,40 @@ const EnhancedReservationScheduler = ({
         </div>
       )}
       
-      {/* Time slot selection */}
-      {selectedDate && (
+      {/* Paket Tetap - tampilkan informasi paket */}
+      {isFixedTimePackage && fixedStartTime && selectedDate && (
+        <div className="mb-6">
+          <div className="bg-yellow-900 bg-opacity-20 rounded-lg p-4 border border-yellow-700 mb-4">
+            <h3 className="font-semibold text-yellow-400 flex items-center mb-2">
+              <Clock size={18} className="mr-2" />
+              Informasi Paket Waktu Tetap
+            </h3>
+            <p className="text-sm text-yellow-300">
+              Anda telah memilih paket dengan waktu tetap. Jam mulai dan durasi sewa sudah ditentukan sesuai dengan paket yang dipilih dan <strong>tidak dapat diubah</strong>.
+            </p>
+          </div>
+          
+          <div className="bg-gradient-to-r from-yellow-900 to-amber-900 rounded-lg p-4 border border-yellow-600 mb-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="text-center">
+                <div className="text-sm text-yellow-300 mb-1">Jam Mulai</div>
+                <div className="text-2xl font-bold text-white">{fixedStartTime}</div>
+              </div>
+              <div className="text-center">
+                <div className="text-sm text-yellow-300 mb-1">Jam Selesai</div>
+                <div className="text-2xl font-bold text-white">{fixedEndTime || getEndTime()}</div>
+              </div>
+              <div className="text-center col-span-2 mt-2">
+                <div className="text-sm text-yellow-300 mb-1">Durasi Sewa</div>
+                <div className="text-xl font-bold text-white">{selectedDuration} Jam</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Time slot selection - Tampilkan hanya jika BUKAN paket tetap */}
+      {selectedDate && !isFixedTimePackage && (
         <div className="mb-6">
           <div className="flex justify-between items-center mb-2">
             <label className="text-gray-300 font-medium">Jam Mulai</label>
@@ -354,13 +402,15 @@ const EnhancedReservationScheduler = ({
               Operasional: 08:00 - 00:00
             </div>
           </div>
-          
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-4">
             {availableTimeSlots.map(slot => {
               const hour = slot.hour;
               const timeString = formatTime(hour);
               
-              // Define gradient colors based on time of day
+              // Tentukan apakah slot ini disabled
+              const isDisabled = !slot.available;
+              
+              // Style conditionals
               let bgGradient = "from-gray-800 to-gray-700"; // Default
               
               if (hour >= 8 && hour < 12) {
@@ -382,15 +432,15 @@ const EnhancedReservationScheduler = ({
                 <button
                   key={slot.hour}
                   type="button"
-                  onClick={() => slot.available && handleTimeSlotSelect(timeString)}
+                  onClick={() => !isDisabled && handleTimeSlotSelect(timeString)}
                   className={`py-3 text-center rounded-lg border ${
-                    !slot.available 
+                    isDisabled
                     ? 'bg-gray-800 border-gray-700 opacity-50 text-gray-500 cursor-not-allowed' 
                     : selectedTime === timeString
-                      ? 'bg-gradient-to-br border-blue-400 text-white font-medium shadow-lg transform scale-105'
-                      : `bg-gradient-to-br ${bgGradient} border-gray-600 hover:border-blue-500`
+                        ? 'bg-gradient-to-br border-blue-400 text-white font-medium shadow-lg transform scale-105'
+                        : `bg-gradient-to-br ${bgGradient} border-gray-600 hover:border-blue-500`
                   }`}
-                  disabled={!slot.available}
+                  disabled={isDisabled}
                 >
                   <div className="text-lg">{timeString}</div>
                 </button>
@@ -400,8 +450,8 @@ const EnhancedReservationScheduler = ({
         </div>
       )}
       
-      {/* Return time info notice */}
-      {selectedTime && (
+      {/* Return time info notice - selalu ditampilkan jika ada waktu */}
+      {(selectedTime || (isFixedTimePackage && fixedStartTime)) && (
         <div className="mb-6">
           <button 
             onClick={() => setShowReturnTimeInfo(!showReturnTimeInfo)} 
@@ -420,81 +470,99 @@ const EnhancedReservationScheduler = ({
         </div>
       )}
       
-      {/* Duration selection */}
-      {selectedTime && (
+      {/* Duration selection - Tampilkan hanya jika BUKAN paket tetap */}
+      {selectedTime && !isFixedTimePackage && (
         <div className="mb-6">
           <label className="block text-gray-300 mb-3 font-medium">Durasi Sewa</label>
           
-          <div className="grid grid-cols-4 gap-2 mb-2">
-            {durationOptions.map(hours => {
-              const isValid = validDurations.includes(hours);
-              const isNextDay = (parseInt(selectedTime?.split(':')[0]) + hours) >= 24;
-              
-              return (
-                <button
-                  key={hours}
-                  type="button"
-                  onClick={() => isValid && onDurationChange(hours)}
-                  className={`relative py-3 text-center rounded-lg ${
-                    !isValid
-                      ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
-                      : selectedDuration === hours
-                        ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-lg'
-                        : isNextDay 
-                          ? 'bg-gradient-to-r from-purple-900 to-indigo-900 border border-indigo-600'
-                          : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
-                  }`}
-                  disabled={!isValid}
-                >
-                  {hours === 24 ? '1 Hari' : `${hours} Jam`}
-                  
-                  {isValid && isNextDay && (
-                    <div className="absolute -top-2 -right-2 w-4 h-4 bg-indigo-500 rounded-full flex items-center justify-center text-white text-xs">
-                      +
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-          
-          {/* Legend for duration colors */}
-          <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-400 mt-2">
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-gray-700 rounded-sm mr-1"></div>
-              <span>Hari yang sama</span>
+          <div>
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {durationOptions.map(hours => {
+                const isValid = validDurations.includes(hours);
+                const isNextDay = (parseInt(selectedTime?.split(':')[0]) + hours) >= 24;
+                
+                // Disable durations yang tidak valid
+                const isDisabled = !isValid;
+                
+                return (
+                  <button
+                    key={hours}
+                    type="button"
+                    onClick={() => !isDisabled && onDurationChange(hours)}
+                    className={`relative py-3 text-center rounded-lg ${
+                      isDisabled
+                        ? 'bg-gray-800 text-gray-600 cursor-not-allowed'
+                        : selectedDuration === hours
+                          ? 'bg-gradient-to-r from-blue-600 to-blue-500 text-white font-medium shadow-lg'
+                          : isNextDay 
+                            ? 'bg-gradient-to-r from-purple-900 to-indigo-900 border border-indigo-600'
+                            : 'bg-gray-700 hover:bg-gray-600 border border-gray-600'
+                    }`}
+                    disabled={isDisabled}
+                  >
+                    {hours === 24 ? '1 Hari' : `${hours} Jam`}
+                    
+                    {isValid && isNextDay && (
+                      <div className="absolute -top-2 -right-2 w-4 h-4 bg-indigo-500 rounded-full flex items-center justify-center text-white text-xs">
+                        +
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-gradient-to-r from-purple-900 to-indigo-900 rounded-sm mr-1"></div>
-              <span>Sampai besok</span>
-            </div>
-            <div className="flex items-center">
-              <div className="w-3 h-3 bg-gray-800 rounded-sm mr-1"></div>
-              <span>Tidak tersedia</span>
+            
+            {/* Legend for duration colors */}
+            <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-gray-400 mt-2">
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-gray-700 rounded-sm mr-1"></div>
+                <span>Hari yang sama</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-gradient-to-r from-purple-900 to-indigo-900 rounded-sm mr-1"></div>
+                <span>Sampai besok</span>
+              </div>
+              <div className="flex items-center">
+                <div className="w-3 h-3 bg-gray-800 rounded-sm mr-1"></div>
+                <span>Tidak tersedia</span>
+              </div>
             </div>
           </div>
         </div>
       )}
       
-      {/* Selected time summary */}
-      {selectedDate && selectedTime && selectedDuration && (
-        <div className="bg-gradient-to-r from-blue-900 to-indigo-900 rounded-lg p-5 shadow-lg border border-blue-700">
+      {/* Selected time summary - selalu ditampilkan */}
+      {selectedDate && ((selectedTime && selectedDuration) || (isFixedTimePackage && fixedStartTime)) && (
+        <div className={`rounded-lg p-5 shadow-lg border ${
+          isFixedTimePackage 
+          ? 'bg-gradient-to-r from-yellow-800 to-amber-800 border-yellow-600' 
+          : 'bg-gradient-to-r from-blue-900 to-indigo-900 border-blue-700'
+        }`}>
           <div className="flex items-start">
-            <div className="bg-blue-800 bg-opacity-50 p-3 rounded-lg mr-4 shadow-inner">
-              <Clock size={24} className="text-blue-300" />
+            <div className={`p-3 rounded-lg mr-4 shadow-inner ${
+              isFixedTimePackage ? 'bg-yellow-700 bg-opacity-50' : 'bg-blue-800 bg-opacity-50'
+            }`}>
+              <Clock size={24} className={isFixedTimePackage ? 'text-yellow-300' : 'text-blue-300'} />
             </div>
             <div>
               <h3 className="font-bold text-lg text-white mb-1">Jadwal Reservasi</h3>
-              <div className="text-blue-100">
-                {new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+              <div className={isFixedTimePackage ? 'text-yellow-100' : 'text-blue-100'}>
+                {selectedDate ? new Date(selectedDate).toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : ''}
               </div>
               <div className="text-xl font-bold text-white mt-1">
-                {selectedTime} - {getEndTime()} 
-                <span className="text-blue-200 ml-2 text-lg">({selectedDuration} jam)</span>
+                {isFixedTimePackage ? fixedStartTime : selectedTime} - {fixedEndTime || getEndTime()} 
+                <span className={`ml-2 text-lg ${isFixedTimePackage ? 'text-yellow-200' : 'text-blue-200'}`}>
+                  ({selectedDuration} jam)
+                </span>
               </div>
               {isNextDayReturn() && (
                 <div className="text-xs bg-indigo-800 inline-block px-2 py-1 rounded mt-2 text-indigo-200">
                   Pengembalian besok pagi
+                </div>
+              )}
+              {isFixedTimePackage && (
+                <div className="text-xs bg-yellow-700 inline-block px-2 py-1 rounded mt-2 ml-2 text-yellow-200">
+                  Paket Waktu Tetap
                 </div>
               )}
             </div>
