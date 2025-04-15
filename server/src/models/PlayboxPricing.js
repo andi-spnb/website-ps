@@ -52,7 +52,27 @@ const PlayboxPricing = sequelize.define('PlayboxPricing', {
   is_active: {
     type: DataTypes.BOOLEAN,
     defaultValue: true
-  }
+  },
+is_fixed_package: {
+  type: DataTypes.BOOLEAN,
+  defaultValue: false,
+  comment: 'Tanda apakah ini paket tetap dengan waktu yang sudah ditentukan'
+},
+fixed_start_time: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  comment: 'Waktu mulai untuk paket tetap (format: HH:MM)'
+},
+fixed_end_time: {
+  type: DataTypes.STRING,
+  allowNull: true,
+  comment: 'Waktu selesai untuk paket tetap (format: HH:MM)'
+},
+fixed_duration: {
+  type: DataTypes.INTEGER,
+  allowNull: true,
+  comment: 'Durasi tetap dalam jam (dihitung otomatis dari waktu mulai dan selesai)'
+}
 }, {
   tableName: 'playbox_pricing',
   timestamps: true

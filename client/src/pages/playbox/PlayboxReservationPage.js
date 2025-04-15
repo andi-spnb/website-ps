@@ -45,11 +45,14 @@ const PlayboxReservationPage = () => {
   
   // State untuk opsi pengambilan di studio
   const [pickupAtStudio, setPickupAtStudio] = useState(false);
-  const studioAddress = "Jl. Contoh No. 123, Kota"; // Alamat studio Anda
-  const studioMapsLink = "https://maps.google.com/?q=Kenzie+Gaming+Studio"; // Link Google Maps studio Anda
+  const studioAddress = "Jln. Husain jeddawi, Macege, Kec. Tanete Riattang Bar., Kabupaten Bone, Sulawesi Selatan 92713"; // Alamat studio Anda
+  const studioMapsLink = "https://maps.app.goo.gl/ooj5ikdKpcqzgmAH6"; // Link Google Maps studio Anda
   
   // State untuk mendeteksi akhir pekan
   const [isWeekend, setIsWeekend] = useState(false);
+  
+  // State untuk paket tetap
+  const [isFixedPackage, setIsFixedPackage] = useState(false);
   
   // Form data
   const [formData, setFormData] = useState({
@@ -205,6 +208,21 @@ const PlayboxReservationPage = () => {
     }
   }, [formData.reservation_date]);
   
+  // Effect untuk mendeteksi perubahan paket
+  useEffect(() => {
+    if (selectedPricing && selectedPricing.is_fixed_package) {
+      setIsFixedPackage(true);
+      // Set waktu dan durasi sesuai paket
+      setFormData(prev => ({
+        ...prev,
+        start_time: selectedPricing.fixed_start_time,
+        duration_hours: selectedPricing.fixed_duration
+      }));
+    } else {
+      setIsFixedPackage(false);
+    }
+  }, [selectedPricing]);
+  
   // Load available time slots when date changes
   useEffect(() => {
     if (!formData.reservation_date || !formData.playbox_id) {
@@ -262,12 +280,37 @@ const PlayboxReservationPage = () => {
     }
   };
   
+  // Hitung waktu akhir berdasarkan waktu awal dan durasi
+  const calculateEndTime = (startTime, durationHours) => {
+    if (!startTime || !durationHours) return null;
+    
+    const [hours, minutes] = startTime.split(':').map(Number);
+    const startDate = new Date();
+    startDate.setHours(hours);
+    startDate.setMinutes(minutes);
+    
+    const endDate = new Date(startDate.getTime() + (durationHours * 60 * 60 * 1000));
+    
+    return `${String(endDate.getHours()).padStart(2, '0')}:${String(endDate.getMinutes()).padStart(2, '0')}`;
+  };
+  
   // Fungsi untuk menghitung biaya berdasarkan durasi dan harga yang dipilih
   const calculateTotalPrice = () => {
     if (!selectedPricing) return 0;
     
     const hours = parseInt(formData.duration_hours || 0);
     if (!hours) return 0;
+    
+    // Jika ini adalah paket tetap, gunakan harga dasar
+    if (selectedPricing.is_fixed_package) {
+      const basePrice = selectedPricing.base_price || 0;
+      const deliveryFee = pickupAtStudio ? 0 : (selectedPricing.delivery_fee || 0);
+      
+      // Tambahkan biaya akhir pekan jika hari ini adalah akhir pekan
+      const weekendSurcharge = isWeekend ? (basePrice * (selectedPricing.weekend_surcharge || 0) / 100) : 0;
+      
+      return basePrice + deliveryFee + weekendSurcharge;
+    }
     
     // Cek apakah harga spesial untuk paket 12/24 jam tersedia
     if (hours === 12 && selectedPricing.package_12h_price) {
@@ -334,7 +377,7 @@ const PlayboxReservationPage = () => {
     e.preventDefault();
   
     // Validasi apakah slot waktu yang dipilih masih tersedia
-    if (formData.start_time) {
+    if (formData.start_time && !isFixedPackage) {
       const selectedHour = parseInt(formData.start_time.split(':')[0]);
       const selectedSlot = availableTimeSlots.find(slot => slot.hour === selectedHour);
       
@@ -644,11 +687,23 @@ const PlayboxReservationPage = () => {
                 <PricingPackageSelector
                   pricingOptions={pricingOptions}
                   selectedPricing={selectedPricing}
-                  onSelectPricing={setSelectedPricing}
+                  onSelectPricing={(pricing) => {
+                    setSelectedPricing(pricing);
+                    // Jika paket tetap, update waktu dan durasi otomatis
+                    if (pricing.is_fixed_package) {
+                      setFormData(prev => ({
+                        ...prev,
+                        start_time: pricing.fixed_start_time,
+                        duration_hours: pricing.fixed_duration
+                      }));
+                    }
+                  }}
                   selectedTime={formData.start_time}
                   selectedDuration={formData.duration_hours}
                   isWeekend={isWeekend}
                   pickupAtStudio={pickupAtStudio}
+                  onTimeSelect={(time) => setFormData(prev => ({ ...prev, start_time: time }))}
+                  onDurationChange={(hours) => setFormData(prev => ({ ...prev, duration_hours: hours }))}
                 />
               )}
             </div>
@@ -657,15 +712,54 @@ const PlayboxReservationPage = () => {
             <div className="bg-gray-800 rounded-lg p-6 mb-6">
               <h2 className="text-xl font-bold mb-4">3. Jadwal Reservasi</h2>
               
-              <EnhancedReservationScheduler
-                availableTimeSlots={availableTimeSlots}
-                onDateChange={(date) => setFormData(prev => ({ ...prev, reservation_date: date }))}
-                onTimeSelect={(time) => setFormData(prev => ({ ...prev, start_time: time }))}
-                onDurationChange={(hours) => setFormData(prev => ({ ...prev, duration_hours: hours }))}
-                selectedDate={formData.reservation_date}
-                selectedTime={formData.start_time}
-                selectedDuration={formData.duration_hours}
-              />
+              {formData.reservation_date && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold mb-3">
+                    Jadwal Reservasi
+                    {isFixedPackage && (
+                      <span className="ml-2 text-xs bg-purple-500 text-white px-2 py-1 rounded-full">
+                        Paket Tetap
+                      </span>
+                    )}
+                  </h3>
+                
+                  {isFixedPackage ? (
+                    <div className="bg-gray-800 p-4 rounded-lg text-center mb-4">
+                      <div className="text-sm text-gray-400 mb-1">Jadwal sudah ditentukan oleh paket:</div>
+                      <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg inline-block">
+                        <div className="font-bold text-lg text-white">
+                          {formData.start_time} - {calculateEndTime(formData.start_time, formData.duration_hours)}
+                        </div>
+                        <div className="text-blue-300">Durasi: {formData.duration_hours} jam</div>
+                      </div>
+                      <p className="text-sm text-gray-400 mt-3">
+                        * Paket ini memiliki waktu tetap. Anda hanya perlu memilih tanggal.
+                      </p>
+                    </div>
+                  ) : (
+                    <EnhancedReservationScheduler
+                      availableTimeSlots={availableTimeSlots}
+                      onDateChange={(date) => setFormData(prev => ({ ...prev, reservation_date: date }))}
+                      onTimeSelect={(time) => setFormData(prev => ({ ...prev, start_time: time }))}
+                      onDurationChange={(hours) => setFormData(prev => ({ ...prev, duration_hours: hours }))}
+                      selectedDate={formData.reservation_date}
+                      selectedTime={formData.start_time}
+                      selectedDuration={formData.duration_hours}
+                    />
+                  )}
+                </div>
+              )}
+              {!formData.reservation_date && (
+                <EnhancedReservationScheduler
+                  availableTimeSlots={availableTimeSlots}
+                  onDateChange={(date) => setFormData(prev => ({ ...prev, reservation_date: date }))}
+                  onTimeSelect={(time) => setFormData(prev => ({ ...prev, start_time: time }))}
+                  onDurationChange={(hours) => setFormData(prev => ({ ...prev, duration_hours: hours }))}
+                  selectedDate={formData.reservation_date}
+                  selectedTime={formData.start_time}
+                  selectedDuration={formData.duration_hours}
+                />
+              )}
             </div>
             
             {/* Step 4: Customer Information */}
@@ -825,9 +919,13 @@ const PlayboxReservationPage = () => {
               {formData.payment_method === 'transfer' && (
                 <div className="bg-gray-700 border border-gray-600 rounded-lg p-4 mb-4 text-sm text-gray-300">
                   <p className="mb-2 font-semibold text-white">Transfer ke Rekening:</p>
+                  <p>Bank: <strong>BRI</strong></p>
+                  <p>No. Rekening: <strong className="font-mono tracking-widest">342001044850535</strong></p>
                   <p>Bank: <strong>BCA</strong></p>
-                  <p>Atas Nama: <strong>Kenzie Gaming</strong></p>
-                  <p>No. Rekening: <strong className="font-mono tracking-widest">1234567890</strong></p>
+                  <p>No. Rekening: <strong className="font-mono tracking-widest">8745190339</strong></p>
+                  <p>Bank: <strong>DANA</strong></p>
+                  <p>No. Rekening: <strong className="font-mono tracking-widest">082264868249</strong></p>
+                  <p>Atas Nama: <strong>Andi Israq Puranama S</strong></p>
               <div className="mt-4">
                 <label className="block text-gray-400 mb-2">Upload Bukti Transfer</label>
                 <input 
@@ -927,12 +1025,27 @@ const PlayboxReservationPage = () => {
                  <div className="border-b border-gray-700 pb-4 mb-4">
                    <h3 className="font-medium">{selectedPricing.name}</h3>
                    <div className="text-sm text-gray-400">
-                     {formData.duration_hours === 12 && selectedPricing.package_12h_price 
-                       ? 'Paket 12 jam (harga spesial)' 
-                       : formData.duration_hours === 24 && selectedPricing.package_24h_price 
-                         ? 'Paket 24 jam (harga spesial)'
-                         : `Durasi ${selectedPricing.min_hours} jam + tambahan`}
+                     {isFixedPackage ? (
+                       'Paket tetap dengan jam dan durasi yang sudah ditentukan'
+                     ) : formData.duration_hours === 12 && selectedPricing.package_12h_price ? (
+                       'Paket 12 jam (harga spesial)'
+                     ) : formData.duration_hours === 24 && selectedPricing.package_24h_price ? (
+                       'Paket 24 jam (harga spesial)'
+                     ) : (
+                       `Durasi ${selectedPricing.min_hours} jam + tambahan`
+                     )}
                    </div>
+                   {isFixedPackage && (
+                     <div className="mt-2 bg-purple-900 bg-opacity-20 p-2 rounded-md text-center">
+                       <div className="text-purple-300 text-xs font-medium mb-1">Paket Tetap</div>
+                       <div className="text-white">
+                         {selectedPricing.fixed_start_time} - {selectedPricing.fixed_end_time}
+                         <span className="ml-2 text-purple-300 text-xs">
+                           ({selectedPricing.fixed_duration} jam)
+                         </span>
+                       </div>
+                     </div>
+                   )}
                  </div>
                )}
                
@@ -965,7 +1078,14 @@ const PlayboxReservationPage = () => {
                    <>
                      <div className="border-t border-gray-700 pt-3 mt-3">
                        {/* Tampilkan rincian harga berdasarkan jenis paket */}
-                       {formData.duration_hours === 12 && selectedPricing.package_12h_price ? (
+                       {isFixedPackage ? (
+                         <>
+                           <div className="flex justify-between">
+                             <span className="text-gray-400">Paket Tetap:</span>
+                             <span>Rp{selectedPricing.base_price.toLocaleString()}</span>
+                           </div>
+                         </>
+                       ) : formData.duration_hours === 12 && selectedPricing.package_12h_price ? (
                          <>
                            <div className="flex justify-between">
                              <span className="text-gray-400">Paket 12 Jam:</span>
@@ -1045,8 +1165,7 @@ const PlayboxReservationPage = () => {
                    ) : (
                      <li>• Pengantaran Playbox dilakukan 30 menit sebelum waktu mulai</li>
                    )}
-                   <li>• Pembayaran dapat dilakukan saat pengantaran</li>
-                   <li>• Deposit akan dikembalikan setelah Playbox dikembalikan dalam kondisi baik</li>
+                   <li>• Pembayaran dapat dilakukan saat pengantaran untuk tunai</li>
                  </ul>
                </div>
              </>

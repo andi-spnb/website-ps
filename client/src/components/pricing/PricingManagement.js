@@ -22,8 +22,6 @@ const PricingManagement = () => {
     time_condition: 'Any',
     is_playbox: false // Tanda untuk membedakan harga PlayStation vs Playbox
   });
-  
-  // Form data khusus untuk Playbox
   const [playboxFormData, setPlayboxFormData] = useState({
     name: '',
     base_price: '',
@@ -34,7 +32,12 @@ const PricingManagement = () => {
     deposit_amount: '',
     package_12h_price: '',
     package_24h_price: '',
-    is_playbox: true  // Tanda untuk membedakan harga PlayStation vs Playbox
+    is_playbox: true,
+    // Field untuk paket tetap
+    is_fixed_package: false,
+    fixed_start_time: '',
+    fixed_end_time: '',
+    fixed_duration: 0
   });
   
   const fetchPricingData = async () => {
@@ -114,11 +117,12 @@ const PricingManagement = () => {
             hourly_rate: 10000,
             min_hours: 3,
             delivery_fee: 20000,
-            weekend_surcharge: 10000,
+            weekend_surcharge: 10,
             deposit_amount: 300000,
             package_12h_price: 180000,
             package_24h_price: 320000,
-            is_playbox: true
+            is_playbox: true,
+            is_fixed_package: false
           },
           {
             price_id: 102,
@@ -127,11 +131,27 @@ const PricingManagement = () => {
             hourly_rate: 15000,
             min_hours: 3,
             delivery_fee: 0,
-            weekend_surcharge: 20000,
+            weekend_surcharge: 20,
             deposit_amount: 500000,
             package_12h_price: null,
             package_24h_price: null,
-            is_playbox: true
+            is_playbox: true,
+            is_fixed_package: false
+          },
+          {
+            price_id: 103,
+            name: 'Paket Malam Playbox',
+            base_price: 120000,
+            hourly_rate: 0,
+            min_hours: 0,
+            delivery_fee: 20000,
+            weekend_surcharge: 10,
+            deposit_amount: 300000,
+            is_playbox: true,
+            is_fixed_package: true,
+            fixed_start_time: '17:00',
+            fixed_end_time: '23:00',
+            fixed_duration: 6
           }
         ]);
       }
@@ -139,7 +159,7 @@ const PricingManagement = () => {
       setLoading(false);
     }
   };
-
+ 
   useEffect(() => {
     fetchPricingData();
   }, [activeTab]);
@@ -160,23 +180,83 @@ const PricingManagement = () => {
   };
   
   const handlePlayboxInputChange = (e) => {
-    const { name, value } = e.target;
-    let finalValue = value;
+    const { name, value, type, checked } = e.target;
+    let finalValue = type === 'checkbox' ? checked : value;
 
     // Convert numeric inputs to numbers
     if (['base_price', 'hourly_rate', 'min_hours', 'delivery_fee', 'weekend_surcharge', 'deposit_amount', 'package_12h_price', 'package_24h_price'].includes(name)) {
       finalValue = value === '' ? '' : parseFloat(value);
     }
 
+    // Update form data
     setPlayboxFormData(prev => ({
       ...prev,
       [name]: finalValue
     }));
+    
+    // Jika ini adalah perubahan pada paket tetap atau waktu tetap, update durasi
+    if (name === 'is_fixed_package' || name === 'fixed_start_time' || name === 'fixed_end_time') {
+      if (name === 'is_fixed_package' && checked === false) {
+        // Reset fixed time fields when unchecking is_fixed_package
+        setPlayboxFormData(prev => ({
+          ...prev,
+          fixed_start_time: '',
+          fixed_end_time: '',
+          fixed_duration: 0
+        }));
+      } else if ((name === 'fixed_start_time' || name === 'fixed_end_time') && playboxFormData.is_fixed_package) {
+        // Calculate duration when changing start or end time
+        const startTime = name === 'fixed_start_time' ? value : playboxFormData.fixed_start_time;
+        const endTime = name === 'fixed_end_time' ? value : playboxFormData.fixed_end_time;
+        
+        if (startTime && endTime) {
+          const duration = calculateDuration(startTime, endTime);
+          setPlayboxFormData(prev => ({
+            ...prev,
+            fixed_duration: duration
+          }));
+        }
+      }
+    }
+  };
+  
+  // Function to calculate duration between two time strings
+  const calculateDuration = (startTime, endTime) => {
+    if (!startTime || !endTime) return 0;
+    
+    const [startHours, startMinutes] = startTime.split(':').map(Number);
+    const [endHours, endMinutes] = endTime.split(':').map(Number);
+    
+    let hours = endHours - startHours;
+    if (hours < 0) hours += 24; // Handle overnight packages
+    
+    let minutes = endMinutes - startMinutes;
+    if (minutes < 0) {
+      hours -= 1;
+      minutes += 60;
+    }
+    
+    // Round to nearest 0.5 hour
+    const duration = hours + (minutes / 60);
+    return Math.round(duration * 2) / 2;
   };
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate fields for fixed package
+      if (activeTab === 'playbox' && playboxFormData.is_fixed_package) {
+        if (!playboxFormData.fixed_start_time || !playboxFormData.fixed_end_time) {
+          toast.error('Paket tetap harus memiliki waktu mulai dan waktu selesai');
+          return;
+        }
+        
+        if (playboxFormData.fixed_duration <= 0) {
+          toast.error('Durasi paket tetap harus lebih dari 0 jam');
+          return;
+        }
+      }
+      
       if (activeTab === 'playstation') {
         await api.post('/pricing', formData);
         toast.success('Harga PlayStation berhasil ditambahkan');
@@ -190,6 +270,12 @@ const PricingManagement = () => {
           is_playbox: false
         });
       } else {
+        // Untuk paket tetap, atur hourly_rate dan min_hours menjadi 0 jika tidak diisi
+        if (playboxFormData.is_fixed_package) {
+          playboxFormData.hourly_rate = playboxFormData.hourly_rate || 0;
+          playboxFormData.min_hours = 0;
+        }
+        
         await api.post('/playbox-pricing', playboxFormData);
         toast.success('Harga Playbox berhasil ditambahkan');
         setPlayboxFormData({
@@ -202,7 +288,11 @@ const PricingManagement = () => {
           deposit_amount: '',
           package_12h_price: '',
           package_24h_price: '',
-          is_playbox: true
+          is_playbox: true,
+          is_fixed_package: false,
+          fixed_start_time: '',
+          fixed_end_time: '',
+          fixed_duration: 0
         });
       }
       
@@ -217,10 +307,29 @@ const PricingManagement = () => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
+      // Validate fields for fixed package
+      if (activeTab === 'playbox' && playboxFormData.is_fixed_package) {
+        if (!playboxFormData.fixed_start_time || !playboxFormData.fixed_end_time) {
+          toast.error('Paket tetap harus memiliki waktu mulai dan waktu selesai');
+          return;
+        }
+        
+        if (playboxFormData.fixed_duration <= 0) {
+          toast.error('Durasi paket tetap harus lebih dari 0 jam');
+          return;
+        }
+      }
+      
       if (activeTab === 'playstation') {
         await api.put(`/pricing/${selectedPrice.price_id}`, formData);
         toast.success('Harga PlayStation berhasil diperbarui');
       } else {
+        // Untuk paket tetap, atur hourly_rate dan min_hours menjadi 0 jika tidak diisi
+        if (playboxFormData.is_fixed_package) {
+          playboxFormData.hourly_rate = playboxFormData.hourly_rate || 0;
+          playboxFormData.min_hours = 0;
+        }
+        
         await api.put(`/playbox-pricing/${selectedPrice.price_id}`, playboxFormData);
         toast.success('Harga Playbox berhasil diperbarui');
       }
@@ -274,7 +383,11 @@ const PricingManagement = () => {
         deposit_amount: price.deposit_amount,
         package_12h_price: price.package_12h_price || '',
         package_24h_price: price.package_24h_price || '',
-        is_playbox: true
+        is_playbox: true,
+        is_fixed_package: price.is_fixed_package || false,
+        fixed_start_time: price.fixed_start_time || '',
+        fixed_end_time: price.fixed_end_time || '',
+        fixed_duration: price.fixed_duration || (price.fixed_start_time && price.fixed_end_time ? calculateDuration(price.fixed_start_time, price.fixed_end_time) : 0)
       });
     }
     
@@ -520,7 +633,7 @@ const PricingManagement = () => {
                     <th className="py-3 px-4 text-center">Min Jam</th>
                     <th className="py-3 px-4 text-right">Biaya Antar</th>
                     <th className="py-3 px-4 text-right">Deposit</th>
-                    <th className="py-3 px-4 text-left">Paket Spesial</th>
+                    <th className="py-3 px-4 text-left">Info Paket</th>
                     <th className="py-3 px-4 text-right">Aksi</th>
                   </tr>
                 </thead>
@@ -529,41 +642,73 @@ const PricingManagement = () => {
                     <tr key={price.price_id} className="hover:bg-gray-750">
                       <td className="py-3 px-4 font-medium">
                         {price.name}
+                        {price.is_fixed_package && (
+                          <span className="ml-2 inline-block px-2 py-0.5 bg-purple-900 text-purple-300 text-xs rounded-full">
+                            Paket Tetap
+                          </span>
+                        )}
                         {price.weekend_surcharge > 0 && (
                           <div className="text-xs text-yellow-400 mt-1">
-                            +{formatRupiah(price.weekend_surcharge)} di akhir pekan
+                            +{price.weekend_surcharge}% di akhir pekan
                           </div>
                         )}
                       </td>
                       <td className="py-3 px-4 text-right">{formatRupiah(price.base_price)}</td>
-                      <td className="py-3 px-4 text-right">{formatRupiah(price.hourly_rate)}</td>
-                      <td className="py-3 px-4 text-center">{price.min_hours} jam</td>
+                      <td className="py-3 px-4 text-right">
+                        {price.is_fixed_package ? (
+                          <span className="text-purple-400">Paket Tetap</span>
+                        ) : (
+                          formatRupiah(price.hourly_rate)
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        {price.is_fixed_package ? (
+                          <span className="text-purple-400">Tetap</span>
+                        ) : (
+                          `${price.min_hours} jam`
+                        )}
+                      </td>
                       <td className="py-3 px-4 text-right">
                         {price.delivery_fee > 0 ? formatRupiah(price.delivery_fee) : 'Gratis'}
                       </td>
                       <td className="py-3 px-4 text-right">{formatRupiah(price.deposit_amount)}</td>
                       <td className="py-3 px-4">
                         <div className="space-y-1 text-sm">
-                          {price.package_12h_price ? (
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 bg-green-900 bg-opacity-30 rounded-full mr-1"></div>
-                              <span>12 Jam: {formatRupiah(price.package_12h_price)}</span>
+                          {price.is_fixed_package ? (
+                            <div className="bg-purple-900 bg-opacity-20 p-2 rounded-md text-center">
+                              <div className="text-purple-300 text-xs font-medium">Jadwal Tetap</div>
+                              <div className="text-white">
+                                {price.fixed_start_time || '-'} - {price.fixed_end_time || '-'}
+                                <span className="ml-2 text-purple-300 text-xs">
+                                  ({price.fixed_duration || calculateDuration(price.fixed_start_time, price.fixed_end_time)} jam)
+                                </span>
+                              </div>
                             </div>
                           ) : (
-                            <div className="text-gray-500">-</div>
+                            <>
+                              {price.package_12h_price ? (
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 bg-green-900 bg-opacity-30 rounded-full mr-1"></div>
+                                  <span>12 Jam: {formatRupiah(price.package_12h_price)}</span>
+                                </div>
+                              ) : (
+                                <div className="text-gray-500">-</div>
+                              )}
+                              {price.package_24h_price ? (
+                                <div className="flex items-center">
+                                  <div className="w-4 h-4 bg-blue-900 bg-opacity-30 rounded-full mr-1"></div>
+                                  <span>24 Jam: {formatRupiah(price.package_24h_price)}</span>
+                                </div>
+                              ) : null}
+                            </>
                           )}
-                          {price.package_24h_price ? (
-                            <div className="flex items-center">
-                              <div className="w-4 h-4 bg-blue-900 bg-opacity-30 rounded-full mr-1"></div>
-                              <span>24 Jam: {formatRupiah(price.package_24h_price)}</span>
-                            </div>
-                          ) : null}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right">
                         <button
                           onClick={() => openEditModal(price)}
-                          className="text-blue-500 hover:text-blue-400 p-1"
+                          className="text-blue-500
+                          hover:text-blue-400 p-1"
                           title="Edit"
                         >
                           <Edit size={16} />
@@ -588,7 +733,7 @@ const PricingManagement = () => {
       {/* Add Price Modal */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
                 {activeTab === 'playstation' ? 'Tambah Harga PlayStation' : 'Tambah Harga Playbox'}
@@ -715,7 +860,7 @@ const PricingManagement = () => {
             
             {/* Playbox Form */}
             {activeTab === 'playbox' && (
-              <form onSubmit={handleAddSubmit}>
+              <form onSubmit={handleAddSubmit} className="max-h-[70vh] overflow-y-auto pr-2">
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Nama Paket</label>
                   <input
@@ -727,6 +872,66 @@ const PricingManagement = () => {
                     placeholder="Contoh: Paket Standar Playbox"
                     required
                   />
+                </div>
+                
+                {/* Jenis Paket: Regular atau Paket Tetap */}
+                <div className="mb-4 bg-gray-700 p-4 rounded-lg border border-gray-600">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      name="is_fixed_package"
+                      checked={playboxFormData.is_fixed_package}
+                      onChange={handlePlayboxInputChange}
+                      className="mr-2"
+                    />
+                    <span className="font-medium">Paket Tetap (Waktu Sudah Ditentukan)</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Paket tetap memiliki waktu mulai dan selesai yang sudah ditentukan.
+                    Pelanggan tidak dapat mengubah jadwal saat pemesanan.
+                  </p>
+                  
+                  {playboxFormData.is_fixed_package && (
+                    <div className="mt-3 bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700">
+                      <h4 className="font-medium text-purple-400 mb-2">Pengaturan Jadwal Tetap</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                        <div>
+                          <label className="block text-gray-300 mb-2">Waktu Mulai</label>
+                          <input
+                            type="time"
+                            name="fixed_start_time"
+                            value={playboxFormData.fixed_start_time}
+                            onChange={handlePlayboxInputChange}
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                            required={playboxFormData.is_fixed_package}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-gray-300 mb-2">Waktu Selesai</label>
+                          <input
+                            type="time"
+                            name="fixed_end_time"
+                            value={playboxFormData.fixed_end_time}
+                            onChange={handlePlayboxInputChange}
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                            required={playboxFormData.is_fixed_package}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center bg-gray-800 border border-gray-600 rounded p-2 mt-2">
+                        <Clock size={16} className="text-purple-400 mr-2" />
+                        <span>
+                          Durasi: 
+                          <span className="font-bold ml-1">
+                            {playboxFormData.fixed_duration || calculateDuration(playboxFormData.fixed_start_time, playboxFormData.fixed_end_time)} jam
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mb-4">
@@ -742,39 +947,47 @@ const PricingManagement = () => {
                     min="0"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Harga dasar untuk sewa Playbox</p>
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Harga Per Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="hourly_rate"
-                    value={playboxFormData.hourly_rate}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 10000"
-                    required
-                    min="0"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Minimum Jam Sewa</label>
-                  <input
-                    type="number"
-                    name="min_hours"
-                    value={playboxFormData.min_hours}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 3"
-                    required
-                    min="1"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Minimum jam sewa yang diizinkan
+                    {playboxFormData.is_fixed_package
+                      ? "Harga total untuk paket waktu tetap"
+                      : "Harga dasar untuk sewa Playbox (ditambah tarif per jam untuk durasi tambahan)"}
                   </p>
                 </div>
+                
+                {/* Hanya tampilkan field tarif per jam & minimum jam jika bukan paket tetap */}
+                {!playboxFormData.is_fixed_package && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Harga Per Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="hourly_rate"
+                        value={playboxFormData.hourly_rate}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 10000"
+                        required={!playboxFormData.is_fixed_package}
+                        min="0"
+                      />
+                    </div>
+                    
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Minimum Jam Sewa</label>
+                      <input
+                        type="number"
+                        name="min_hours"
+                        value={playboxFormData.min_hours}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 3"
+                        required={!playboxFormData.is_fixed_package}
+                        min="1"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Minimum jam sewa yang diizinkan
+                      </p>
+                    </div>
+                  </>
+                )}
                 
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Biaya Pengantaran (Rp)</label>
@@ -790,18 +1003,19 @@ const PricingManagement = () => {
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Tambahan Biaya Akhir Pekan (Rp)</label>
+                  <label className="block text-gray-400 mb-2">Tambahan Biaya Akhir Pekan (%)</label>
                   <input
                     type="number"
                     name="weekend_surcharge"
                     value={playboxFormData.weekend_surcharge}
                     onChange={handlePlayboxInputChange}
                     className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 10000 (0 untuk tidak ada tambahan)"
+                    placeholder="Contoh: 10 (untuk 10%)"
                     min="0"
+                    max="100"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Biaya tambahan jika digunakan pada akhir pekan
+                    Persentase tambahan biaya jika digunakan pada akhir pekan
                   </p>
                 </div>
                 
@@ -820,38 +1034,43 @@ const PricingManagement = () => {
                     Deposit yang dikembalikan setelah Playbox dikembalikan dalam kondisi baik
                   </p>
                 </div>
+                
+                {/* Hanya tampilkan paket khusus jika bukan paket tetap */}
+                {!playboxFormData.is_fixed_package && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="package_12h_price"
+                        value={playboxFormData.package_12h_price || ''}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
+                        min="0"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
+                      </p>
+                    </div>
 
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="package_12h_price"
-                    value={playboxFormData.package_12h_price || ''}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
-                    min="0"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
-                  </p>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="package_24h_price"
-                    value={playboxFormData.package_24h_price || ''}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
-                    min="0"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
-                  </p>
-                </div>
+                    <div className="mb-6">
+                      <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="package_24h_price"
+                        value={playboxFormData.package_24h_price || ''}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
+                        min="0"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
+                      </p>
+                    </div>
+                  </>
+                )}
                 
                 <div className="flex space-x-3">
                   <button 
@@ -877,7 +1096,7 @@ const PricingManagement = () => {
       {/* Edit Price Modal */}
       {showEditModal && selectedPrice && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-gray-800 rounded-lg p-6 w-full max-w-md max-h-screen overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
                 {activeTab === 'playstation' ? 'Edit Harga PlayStation' : 'Edit Harga Playbox'}
@@ -1004,7 +1223,7 @@ const PricingManagement = () => {
             
             {/* Playbox Edit Form */}
             {activeTab === 'playbox' && (
-              <form onSubmit={handleEditSubmit}>
+              <form onSubmit={handleEditSubmit} className="max-h-[70vh] overflow-y-auto pr-2">
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Nama Paket</label>
                   <input
@@ -1016,6 +1235,66 @@ const PricingManagement = () => {
                     placeholder="Contoh: Paket Standar Playbox"
                     required
                   />
+                </div>
+                
+                {/* Jenis Paket: Regular atau Paket Tetap */}
+                <div className="mb-4 bg-gray-700 p-4 rounded-lg border border-gray-600">
+                  <label className="flex items-center mb-3">
+                    <input
+                      type="checkbox"
+                      name="is_fixed_package"
+                      checked={playboxFormData.is_fixed_package}
+                      onChange={handlePlayboxInputChange}
+                      className="mr-2"
+                    />
+                    <span className="font-medium">Paket Tetap (Waktu Sudah Ditentukan)</span>
+                  </label>
+                  <p className="text-xs text-gray-400 mb-2">
+                    Paket tetap memiliki waktu mulai dan selesai yang sudah ditentukan.
+                    Pelanggan tidak dapat mengubah jadwal saat pemesanan.
+                  </p>
+                  
+                  {playboxFormData.is_fixed_package && (
+                    <div className="mt-3 bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700">
+                      <h4 className="font-medium text-purple-400 mb-2">Pengaturan Jadwal Tetap</h4>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-2">
+                        <div>
+                          <label className="block text-gray-300 mb-2">Waktu Mulai</label>
+                          <input
+                            type="time"
+                            name="fixed_start_time"
+                            value={playboxFormData.fixed_start_time}
+                            onChange={handlePlayboxInputChange}
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                            required={playboxFormData.is_fixed_package}
+                          />
+                        </div>
+                        
+                        <div>
+                          <label className="block text-gray-300 mb-2">Waktu Selesai</label>
+                          <input
+                            type="time"
+                            name="fixed_end_time"
+                            value={playboxFormData.fixed_end_time}
+                            onChange={handlePlayboxInputChange}
+                            className="w-full bg-gray-800 border border-gray-600 rounded p-2"
+                            required={playboxFormData.is_fixed_package}
+                          />
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center bg-gray-800 border border-gray-600 rounded p-2 mt-2">
+                        <Clock size={16} className="text-purple-400 mr-2" />
+                        <span>
+                          Durasi: 
+                          <span className="font-bold ml-1">
+                            {playboxFormData.fixed_duration || calculateDuration(playboxFormData.fixed_start_time, playboxFormData.fixed_end_time)} jam
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="mb-4">
@@ -1031,40 +1310,47 @@ const PricingManagement = () => {
                     min="0"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Harga dasar untuk sewa Playbox
+                    {playboxFormData.is_fixed_package
+                      ? "Harga total untuk paket waktu tetap"
+                      : "Harga dasar untuk sewa Playbox (ditambah tarif per jam untuk durasi tambahan)"}
                   </p>
                 </div>
                 
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Harga Per Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="hourly_rate"
-                    value={playboxFormData.hourly_rate}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 10000"
-                    required
-                    min="0"
-                  />
-                </div>
-                
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Minimum Jam Sewa</label>
-                  <input
-                    type="number"
-                    name="min_hours"
-                    value={playboxFormData.min_hours}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 3"
-                    required
-                    min="1"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Minimum jam sewa yang diizinkan
-                  </p>
-                </div>
+                {/* Hanya tampilkan field tarif per jam & minimum jam jika bukan paket tetap */}
+                {!playboxFormData.is_fixed_package && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Harga Per Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="hourly_rate"
+                        value={playboxFormData.hourly_rate}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 10000"
+                        required={!playboxFormData.is_fixed_package}
+                        min="0"
+                      />
+                    </div>
+                    
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Minimum Jam Sewa</label>
+                      <input
+                        type="number"
+                        name="min_hours"
+                        value={playboxFormData.min_hours}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 3"
+                        required={!playboxFormData.is_fixed_package}
+                        min="1"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Minimum jam sewa yang diizinkan
+                      </p>
+                    </div>
+                  </>
+                )}
                 
                 <div className="mb-4">
                   <label className="block text-gray-400 mb-2">Biaya Pengantaran (Rp)</label>
@@ -1080,18 +1366,19 @@ const PricingManagement = () => {
                 </div>
                 
                 <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Tambahan Biaya Akhir Pekan (Rp)</label>
+                  <label className="block text-gray-400 mb-2">Tambahan Biaya Akhir Pekan (%)</label>
                   <input
                     type="number"
                     name="weekend_surcharge"
                     value={playboxFormData.weekend_surcharge}
                     onChange={handlePlayboxInputChange}
                     className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 10000 (0 untuk tidak ada tambahan)"
+                    placeholder="Contoh: 10 (untuk 10%)"
                     min="0"
+                    max="100"
                   />
                   <p className="text-xs text-gray-400 mt-1">
-                    Biaya tambahan jika digunakan pada akhir pekan
+                    Persentase tambahan biaya jika digunakan pada akhir pekan
                   </p>
                 </div>
                 
@@ -1110,38 +1397,43 @@ const PricingManagement = () => {
                     Deposit yang dikembalikan setelah Playbox dikembalikan dalam kondisi baik
                   </p>
                 </div>
+                
+                {/* Hanya tampilkan paket khusus jika bukan paket tetap */}
+                {!playboxFormData.is_fixed_package && (
+                  <>
+                    <div className="mb-4">
+                      <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="package_12h_price"
+                        value={playboxFormData.package_12h_price || ''}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
+                        min="0"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
+                      </p>
+                    </div>
 
-                <div className="mb-4">
-                  <label className="block text-gray-400 mb-2">Harga Paket 12 Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="package_12h_price"
-                    value={playboxFormData.package_12h_price || ''}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 180000 (kosongkan jika tidak menawarkan)"
-                    min="0"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Harga spesial untuk paket 12 jam (Rekomendasi: 15-20% lebih murah dari tarif per jam)
-                  </p>
-                </div>
-
-                <div className="mb-6">
-                  <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
-                  <input
-                    type="number"
-                    name="package_24h_price"
-                    value={playboxFormData.package_24h_price || ''}
-                    onChange={handlePlayboxInputChange}
-                    className="w-full bg-gray-700 border border-gray-600 rounded p-2"
-                    placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
-                    min="0"
-                  />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
-                  </p>
-                </div>
+                    <div className="mb-6">
+                      <label className="block text-gray-400 mb-2">Harga Paket 24 Jam (Rp)</label>
+                      <input
+                        type="number"
+                        name="package_24h_price"
+                        value={playboxFormData.package_24h_price || ''}
+                        onChange={handlePlayboxInputChange}
+                        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+                        placeholder="Contoh: 320000 (kosongkan jika tidak menawarkan)"
+                        min="0"
+                      />
+                      <p className="text-xs text-gray-400 mt-1">
+                        Harga spesial untuk paket 24 jam / 1 hari (Rekomendasi: 25-30% lebih murah dari tarif per jam)
+                      </p>
+                    </div>
+                  </>
+                )}
                 
                 <div className="flex space-x-3">
                   <button 
@@ -1177,6 +1469,11 @@ const PricingManagement = () => {
                 Apakah Anda yakin ingin menghapus harga <strong>{selectedPrice.name}</strong>?
                 Tindakan ini tidak dapat dikembalikan.
               </p>
+              {selectedPrice.is_fixed_package && (
+                <div className="mt-3 bg-yellow-900 bg-opacity-20 p-3 rounded-lg text-yellow-400 text-sm">
+                  <strong>Perhatian:</strong> Ini adalah paket tetap dengan jadwal khusus.
+                </div>
+              )}
             </div>
             
             <div className="flex space-x-3">

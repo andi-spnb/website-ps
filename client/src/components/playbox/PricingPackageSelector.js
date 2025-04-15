@@ -8,7 +8,9 @@ const PricingPackageSelector = ({
   selectedTime,
   selectedDuration,
   isWeekend,
-  pickupAtStudio
+  pickupAtStudio,
+  onTimeSelect,
+  onDurationChange
 }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -20,6 +22,13 @@ const PricingPackageSelector = ({
     
     // Apply weekend surcharge if applicable
     const weekendMultiplier = isWeekend && pricing.weekend_surcharge ? 1 + (pricing.weekend_surcharge / 100) : 1;
+    
+    // Jika ini adalah paket tetap, gunakan harga dasar
+    if (pricing.is_fixed_package) {
+      const basePrice = pricing.base_price || 0;
+      const deliveryFee = pickupAtStudio ? 0 : (pricing.delivery_fee || 0);
+      return (basePrice + deliveryFee) * weekendMultiplier;
+    }
     
     // If this is a special duration package (12 or 24 hours)
     if (duration === 12 && pricing.package_12h_price) {
@@ -137,6 +146,7 @@ const PricingPackageSelector = ({
           </p>
           <ul className="space-y-1 list-disc pl-5">
             <li>Paket Standard: Harga dasar + tarif per jam untuk durasi tambahan</li>
+            <li>Paket Tetap: Jadwal dengan jam mulai dan selesai yang sudah ditentukan</li>
             <li>Paket 12 Jam: Harga spesial dengan diskon hingga 20%</li>
             <li>Paket 24 Jam: Harga spesial dengan diskon hingga 30%</li>
             <li>Biaya antar tidak dikenakan jika Anda mengambil sendiri di studio</li>
@@ -149,7 +159,7 @@ const PricingPackageSelector = ({
         {pricingOptions.map(pricing => {
           const isSelected = selectedPricing && selectedPricing.price_id === pricing.price_id;
           const totalPrice = calculatePrice(pricing, selectedDuration);
-          const isDisabled = selectedDuration < pricing.min_hours;
+          const isDisabled = !pricing.is_fixed_package && selectedDuration < pricing.min_hours;
           const hasSpecialPackage = (selectedDuration === 12 && pricing.package_12h_price) || 
                                    (selectedDuration === 24 && pricing.package_24h_price);
           const savingsPercent = getSavingsPercent(pricing, selectedDuration);
@@ -160,16 +170,27 @@ const PricingPackageSelector = ({
           return (
             <button
               key={pricing.price_id}
-              onClick={() => !isDisabled && onSelectPricing(pricing)}
+              onClick={() => {
+                if (!isDisabled) {
+                  onSelectPricing(pricing);
+                  // Jika memilih paket tetap, update waktu dan durasi
+                  if (pricing.is_fixed_package) {
+                    onTimeSelect && onTimeSelect(pricing.fixed_start_time);
+                    onDurationChange && onDurationChange(pricing.fixed_duration);
+                  }
+                }
+              }}
               disabled={isDisabled}
               className={`relative p-4 rounded-lg text-left border ${
                 isDisabled 
                 ? 'bg-gray-900 border-gray-800 opacity-50 cursor-not-allowed' 
                 : isSelected
                   ? 'bg-gradient-to-br from-blue-900 to-indigo-900 border-blue-500 shadow-lg'
-                  : hasSpecialPackage
-                    ? 'bg-gradient-to-br from-green-900 to-emerald-900 border-green-700 hover:border-green-500'
-                    : 'bg-gray-800 border-gray-700 hover:border-blue-500'
+                  : pricing.is_fixed_package
+                    ? 'bg-gradient-to-br from-purple-900 to-indigo-900 border-purple-700 hover:border-purple-500'
+                    : hasSpecialPackage
+                      ? 'bg-gradient-to-br from-green-900 to-emerald-900 border-green-700 hover:border-green-500'
+                      : 'bg-gray-800 border-gray-700 hover:border-blue-500'
               }`}
             >
               {isRecommended && !isDisabled && (
@@ -194,7 +215,7 @@ const PricingPackageSelector = ({
               <div className="text-sm text-gray-300 space-y-1">
                 <div className="flex items-center">
                   <div className="w-4">{isSelected ? <Check size={14} className="text-blue-400" /> : ''}</div>
-                  <span>Durasi minimum: {pricing.min_hours} jam</span>
+                  <span>Durasi minimum: {pricing.is_fixed_package ? pricing.fixed_duration : pricing.min_hours} jam</span>
                 </div>
                 <div className="flex items-center">
                   <div className="w-4">{isSelected ? <Check size={14} className="text-blue-400" /> : ''}</div>
@@ -235,6 +256,19 @@ const PricingPackageSelector = ({
                   </div>
                 )}
               </div>
+              
+              {/* Tampilkan informasi paket tetap */}
+              {pricing.is_fixed_package && (
+                <div className="mt-2 bg-purple-900 bg-opacity-20 p-2 rounded-md text-center">
+                  <div className="text-purple-300 text-xs font-medium mb-1">Paket Tetap</div>
+                  <div className="text-white">
+                    {pricing.fixed_start_time} - {pricing.fixed_end_time}
+                    <span className="ml-2 text-purple-300 text-xs">
+                      ({pricing.fixed_duration} jam)
+                    </span>
+                  </div>
+                </div>
+              )}
               
               {isDisabled && (
                 <div className="mt-2 text-xs bg-red-900 bg-opacity-20 text-red-400 p-1.5 rounded">
