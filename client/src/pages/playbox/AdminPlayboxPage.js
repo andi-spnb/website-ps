@@ -15,6 +15,8 @@ import {
 } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
+import { IdCard } from 'lucide-react';
+
 
 const AdminPlayboxPage = () => {
   const [playboxes, setPlayboxes] = useState([]);
@@ -31,6 +33,10 @@ const AdminPlayboxPage = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [showReservationModal, setShowReservationModal] = useState(false);
   const [statusNote, setStatusNote] = useState('');
+  const [identityData, setIdentityData] = useState(null);
+  const [loadingIdentity, setLoadingIdentity] = useState(false);
+  const [identityError, setIdentityError] = useState(null);
+
   
   const [formData, setFormData] = useState({
     playbox_name: '',
@@ -57,7 +63,26 @@ const AdminPlayboxPage = () => {
       setLoading(false);
     }
   };
-  
+
+  const getCorrectImageUrl = (path) => {
+    if (!path) return null;
+    
+    // Jika path sudah lengkap dengan http, kembalikan apa adanya
+    if (path.startsWith('http')) {
+      return path;
+    }
+    
+    // Gunakan URL langsung, bukan melalui konfigurasi API
+    // Pastikan path dimulai dengan slash
+    const formattedPath = path.startsWith('/') ? path : `/${path}`;
+    const fullUrl = `http://localhost:5000${formattedPath}`;
+    
+    console.log('Original path:', path);
+    console.log('Direct URL:', fullUrl);
+    
+    return fullUrl;
+  };
+
   const fetchReservations = async () => {
     try {
       setLoadingReservations(true);
@@ -136,6 +161,21 @@ const AdminPlayboxPage = () => {
     }
   };
   
+  const fetchIdentityData = async (reservationId) => {
+    try {
+      setLoadingIdentity(true);
+      const response = await api.get(`/playbox/reservations/${reservationId}/identity`);
+      setIdentityData(response.data);
+      setIdentityError(null);
+    } catch (err) {
+      console.error('Error fetching identity data:', err);
+      setIdentityError('Data identitas tidak tersedia');
+      setIdentityData(null);
+    } finally {
+      setLoadingIdentity(false);
+    }
+  };
+
   const handleUpdateReservationStatus = async (newStatus) => {
     if (!selectedReservation) return;
     
@@ -191,10 +231,16 @@ const AdminPlayboxPage = () => {
     setShowDeleteModal(true);
   };
   
-  const openReservationModal = (reservation) => {
-    setSelectedReservation(reservation);
-    setShowReservationModal(true);
-  };
+const openReservationModal = (reservation) => {
+  setSelectedReservation(reservation);
+  setShowReservationModal(true);
+  
+  // Ambil data identitas jika ada reservation_id
+  if (reservation && reservation.reservation_id) {
+    fetchIdentityData(reservation.reservation_id);
+  }
+};
+
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -873,12 +919,12 @@ const AdminPlayboxPage = () => {
                     <span className="text-gray-400">Metode Pembayaran:</span>
                     <span>{selectedReservation.payment_method || '-'}</span>
                   </div>
-                  {selectedReservation.payment_proof_url && (
+{selectedReservation.payment_proof_url && (
   <div className="mb-6">
     <h3 className="text-lg font-semibold mb-3">Bukti Pembayaran</h3>
     <div className="bg-gray-700 rounded-lg p-4">
       <a 
-        href={`http://localhost:5000${selectedReservation.payment_proof_url}`} 
+        href={getCorrectImageUrl(selectedReservation.payment_proof_url)}
         target="_blank" 
         rel="noopener noreferrer" 
         className="text-blue-400 hover:underline"
@@ -887,17 +933,103 @@ const AdminPlayboxPage = () => {
       </a>
       {/\.(jpg|jpeg|png|webp|gif)$/i.test(selectedReservation.payment_proof_url) && (
         <div className="mt-4">
-          <img 
-            src={`http://localhost:5000${selectedReservation.payment_proof_url}`} 
-            alt="Bukti Pembayaran" 
-            className="rounded border border-gray-600 max-h-64 object-contain" 
-          />
+<img 
+  src={getCorrectImageUrl(selectedReservation.payment_proof_url)}
+  alt="Bukti Pembayaran" 
+  className="rounded border border-gray-600 max-h-64 object-contain"
+  onError={(e) => {
+    console.error('Payment proof image failed to load:', e);
+    e.target.src = '/placeholder-payment.png';
+    e.target.classList.add('img-error');
+    console.log('Original payment proof URL:', selectedReservation.payment_proof_url);
+    console.log('Failed URL:', getCorrectImageUrl(selectedReservation.payment_proof_url));
+  }}
+/>
         </div>
       )}
     </div>
   </div>
 )}
-
+                {selectedReservation && (
+                  <div className="mb-6">
+                    <h3 className="text-lg font-semibold mb-3">Identitas Pelanggan</h3>
+                    
+                    {loadingIdentity ? (
+                      <div className="bg-gray-700 rounded-lg p-4 animate-pulse">
+                        <div className="h-4 bg-gray-600 rounded w-1/3 mb-3"></div>
+                        <div className="h-4 bg-gray-600 rounded w-1/2 mb-3"></div>
+                        <div className="h-24 bg-gray-600 rounded mb-3"></div>
+                      </div>
+                    ) : identityError ? (
+                      <div className="bg-red-900 bg-opacity-20 p-4 rounded-lg border border-red-500">
+                        <div className="flex items-center text-red-500 mb-2">
+                          <AlertCircle size={18} className="mr-2" />
+                          <span className="font-medium">Error</span>
+                        </div>
+                        <p className="text-red-400">{identityError}</p>
+                      </div>
+                    ) : identityData ? (
+                      <div className="bg-gray-700 rounded-lg p-4">
+                        <div className="flex justify-between mb-3">
+                          <div>
+                            <span className="text-gray-400">Jenis Identitas:</span>
+                            <span className="ml-2 font-medium">{identityData.identity_type}</span>
+                          </div>
+                          
+                          {identityData.identity_number && (
+                            <div>
+                              <span className="text-gray-400">Nomor:</span>
+                              <span className="ml-2 font-medium">{identityData.identity_number}</span>
+                            </div>
+                          )}
+                        </div>
+                        
+                        {identityData && identityData.identity_file_url && (
+  <div>
+    <div className="text-gray-400 mb-2">File Identitas:</div>
+    <div className="border border-gray-600 rounded-lg p-2 bg-gray-800">
+      <a 
+        href={getCorrectImageUrl(identityData.identity_file_url)}
+        target="_blank" 
+        rel="noopener noreferrer" 
+        className="text-blue-400 hover:underline flex items-center"
+      >
+        <IdCard size={16} className="mr-2" />
+        Lihat Identitas
+      </a>
+      
+      {/\.(jpg|jpeg|png|webp|gif)$/i.test(identityData.identity_file_url) && (
+        <div className="mt-3">
+<img 
+  src={getCorrectImageUrl(identityData.identity_file_url)}
+  alt="Identitas Pelanggan" 
+  className="rounded border border-gray-600 max-h-64 object-contain mx-auto"
+  onError={(e) => {
+    console.error('Image failed to load:', e);
+    e.target.src = '/placeholder-id.png';
+    e.target.classList.add('img-error');
+    console.log('Original identity URL:', identityData.identity_file_url);
+    console.log('Failed URL:', getCorrectImageUrl(identityData.identity_file_url));
+  }}
+/>
+        </div>
+      )}
+    </div>
+    
+    <div className="mt-2 text-xs text-gray-400">
+      <p>File identitas akan otomatis dihapus pada: {new Date(identityData.expiry_date).toLocaleString('id-ID')}</p>
+    </div>
+  </div>
+)}
+                      </div>
+                    ) : (
+                      <div className="bg-gray-700 rounded-lg p-4 text-center text-gray-400">
+                        <IdCard size={32} className="mx-auto mb-2 opacity-50" />
+                        <p>Tidak ada data identitas yang tersedia</p>
+                      </div>
+                    )}
+                  </div>
+                )}
                   <div className="flex justify-between">
                     <span className="text-gray-400">Status Pembayaran:</span>
                     <span>

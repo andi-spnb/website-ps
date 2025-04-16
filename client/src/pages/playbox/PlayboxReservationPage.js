@@ -65,7 +65,9 @@ const PlayboxReservationPage = () => {
     start_time: '',
     duration_hours: 3, // Default ke 3 jam
     payment_method: 'cash',
-    notes: ''
+    notes: '',
+    identity_type: 'KTP',
+    identity_number: ''
   });
   
   // Predefined durations
@@ -387,6 +389,12 @@ const PlayboxReservationPage = () => {
       }
     }
   
+    // Validasi upload identitas
+    if (!formData.identity_file) {
+      setError('Upload identitas wajib dilakukan sebagai pengganti deposit');
+      return;
+    }
+  
     console.log('Initial Form Data:', formData);
     console.log('Available Playboxes:', playboxes);
   
@@ -464,9 +472,17 @@ const PlayboxReservationPage = () => {
         formDataObj.append('pricing_id', selectedPricing.price_id);
       }
       
-      // Menambahkan calculated total amount dan deposit
+      // Menambahkan calculated total amount
       formDataObj.append('total_amount', calculateTotalPrice());
-      formDataObj.append('deposit_amount', selectedPricing.deposit_amount || 0);
+      
+      // Menambahkan data identitas
+      formDataObj.append('identity_type', formData.identity_type);
+      formDataObj.append('identity_number', formData.identity_number || '');
+      
+      // Menambahkan file identitas
+      if (formData.identity_file) {
+        formDataObj.append('identity_file', formData.identity_file);
+      }
       
       // Menambahkan bukti pembayaran jika ada
       if (formData.payment_method === 'transfer' && formData.transfer_proof) {
@@ -817,7 +833,77 @@ const PlayboxReservationPage = () => {
              
              <div>
                <label className="block text-gray-400 mb-2">Alamat Pengantaran</label>
-               
+                <div className="border-t border-gray-700 pt-4 mt-4">
+    <h3 className="font-medium mb-3 flex items-center">
+      <CreditCard size={16} className="mr-2" /> Upload Identitas (Pengganti Deposit)
+    </h3>
+    
+    <div className="mb-4 bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-800 text-sm">
+      <div className="flex items-start">
+        <Info size={16} className="text-blue-400 mr-2 mt-0.5 flex-shrink-0" />
+        <div>
+          <p className="text-blue-300">
+            <span className="font-medium">Identitas sebagai jaminan:</span> Sebagai pengganti deposit uang, kami meminta Anda mengunggah identitas (KTP/SIM/dll).
+          </p>
+          <p className="text-blue-300 mt-1">
+            Identitas Anda aman dan akan otomatis dihapus 1 hari setelah Playbox dikembalikan.
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div>
+        <label className="block text-gray-400 mb-2">Jenis Identitas</label>
+        <select
+          name="identity_type"
+          value={formData.identity_type}
+          onChange={handleInputChange}
+          className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+          required
+        >
+          <option value="KTP">KTP (Kartu Tanda Penduduk)</option>
+          <option value="SIM">SIM (Surat Izin Mengemudi)</option>
+          <option value="Passport">Passport</option>
+          <option value="Kartu Pelajar">Kartu Pelajar</option>
+          <option value="Lainnya">Lainnya</option>
+        </select>
+      </div>
+      
+      <div>
+        <label className="block text-gray-400 mb-2">Nomor Identitas</label>
+        <input
+          type="text"
+          name="identity_number"
+          value={formData.identity_number}
+          onChange={handleInputChange}
+          className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+          placeholder="Contoh: 7471XXXXXXXXXX"
+        />
+      </div>
+    </div>
+    
+    <div className="mb-4">
+      <label className="block text-gray-400 mb-2 font-medium text-yellow-300">
+        Upload File Identitas <span className="text-red-400">*</span>
+      </label>
+      <input 
+        type="file" 
+        name="identity_file"
+        accept="image/*,application/pdf"
+        onChange={(e) => setFormData(prev => ({ 
+          ...prev, 
+          identity_file: e.target.files[0] 
+        }))}
+        className="w-full bg-gray-700 border border-gray-600 rounded p-2"
+        required
+      />
+      <p className="text-xs text-gray-400 mt-2">
+        Format yang diterima: JPG, PNG, PDF (Maks. 5MB)
+      </p>
+    </div>
+  </div>
+
                <div className="mb-3">
                  <label className="flex items-center bg-gray-700 border border-gray-600 rounded-lg p-3 cursor-pointer hover:border-blue-500 mb-3">
                    <input
@@ -885,6 +971,7 @@ const PlayboxReservationPage = () => {
                    </div>
                  </>
                )}
+               
              </div>
            </div>
            
@@ -976,7 +1063,6 @@ const PlayboxReservationPage = () => {
               )}
 
              </div>
-             
              <div>
                <label className="block text-gray-400 mb-2">Catatan Tambahan (Opsional)</label>
                <textarea
@@ -988,7 +1074,7 @@ const PlayboxReservationPage = () => {
                ></textarea>
              </div>
            </div>
-           
+          
            <button
              type="submit"
              disabled={submitting}

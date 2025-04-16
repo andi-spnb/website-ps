@@ -10,6 +10,8 @@ const OrderItem = require('./OrderItem');
 const Shift = require('./Shift');
 const Transaction = require('./Transaction');
 const Notification = require('./Notification');
+const CustomerIdentity = require('./CustomerIdentity');
+
 
 // Playbox models
 const Playbox = require('./Playbox');
@@ -58,6 +60,10 @@ PlayboxReservation.belongsTo(Staff, { foreignKey: 'staff_id' });
 PlayboxReservation.belongsTo(Playbox, { foreignKey: 'playbox_id' });
 Playbox.hasMany(PlayboxReservation, { foreignKey: 'playbox_id' });
 
+PlayboxReservation.hasOne(CustomerIdentity, { foreignKey: 'reservation_id' });
+CustomerIdentity.belongsTo(PlayboxReservation, { foreignKey: 'reservation_id' });
+
+
 
 Transaction.belongsTo(RentalSession, { 
   foreignKey: 'reference_id', 
@@ -78,9 +84,9 @@ module.exports = {
   Shift,
   Transaction,
   Notification,
-  // Playbox exports
   Playbox,
   PlayboxReservation,
   PlayboxGame,
-  PlayboxPricing
+  PlayboxPricing,
+  CustomerIdentity
 };

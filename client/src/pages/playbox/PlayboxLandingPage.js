@@ -11,7 +11,8 @@ import {
   Users,
   ArrowRight,
   X,
-  AlertCircle
+  AlertCircle,
+  Search
 } from 'lucide-react';
 import api from '../../services/api';
 
@@ -524,30 +525,37 @@ const PlayboxLandingPage = () => {
       
       {/* CTA Section */}
       <div className="container mx-auto px-4">
-        <div className="bg-gradient-to-r from-blue-900 to-blue-600 rounded-lg p-8 md:p-12 text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">Siap Untuk Memulai Petualangan Gaming?</h2>
-          <p className="text-gray-200 mb-8 max-w-2xl mx-auto">
-            Pesan Playbox sekarang dan nikmati pengalaman bermain PlayStation 4 di mana saja!
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link 
-              to="/playbox/reservation" 
-              className="bg-white text-blue-600 hover:bg-gray-100 px-6 py-3 rounded-lg font-medium flex items-center justify-center"
-            >
-              Pesan Sekarang
-              <ArrowRight className="ml-2" size={18} />
-            </Link>
-            <a 
-              href="https://wa.me/62895386763040?text=Halo,%20saya%20ingin%20bertanya%20tentang%20Playbox" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
-            >
-              Hubungi via WhatsApp
-            </a>
+          <div className="bg-gradient-to-r from-blue-900 to-blue-600 rounded-lg p-8 md:p-12 text-center">
+            <h2 className="text-2xl md:text-3xl font-bold mb-4">Siap Untuk Memulai Petualangan Gaming?</h2>
+            <p className="text-gray-200 mb-8 max-w-2xl mx-auto">
+              Pesan Playbox sekarang dan nikmati pengalaman bermain PlayStation 4 di mana saja!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Link 
+                to="/playbox/reservation" 
+                className="bg-white text-blue-600 hover:bg-gray-100 px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+              >
+                Pesan Sekarang
+                <ArrowRight className="ml-2" size={18} />
+              </Link>
+              <Link 
+                to="/playbox/tracking" 
+                className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+              >
+                Cek Reservasi
+                <Search className="ml-2" size={18} />
+              </Link>
+              <a 
+                href="https://wa.me/62895386763040?text=Halo,%20saya%20ingin%20bertanya%20tentang%20Playbox" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+              >
+                Hubungi via WhatsApp
+              </a>
+            </div>
           </div>
         </div>
-      </div>
     </div>
   );
 };
