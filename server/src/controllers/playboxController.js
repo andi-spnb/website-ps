@@ -6,11 +6,12 @@ const {
   Transaction,
   Notification,
   PlayboxPricing,
-  sequelize
+  sequelize,
+  CustomerIdentity
 } = require('../models');
 const { Op } = require('sequelize');
 const { generateBookingCode } = require('../utils/helpers');
-
+const path = require('path');
 
 exports.getAllPlayboxes = async (req, res) => {
   try {
@@ -160,8 +161,14 @@ exports.getPlayboxById = async (req, res) => {
 // Create reservation (public)
 exports.createReservation = async (req, res) => {
   const transaction = await sequelize.transaction();
-  const proofUrl = req.file ? `/uploads/bukti/${req.file.filename}` : null;
+  const proofUrl = req.files?.payment_proof ? `/uploads/bukti/${req.files.payment_proof[0].filename}` : null;
   const proofType = req.body.payment_method === 'qris' ? 'qris' : 'transfer';
+  
+  // Handle identity file upload
+  const identityUrl = req.files?.identity_file ? `/uploads/identitas/${req.files.identity_file[0].filename}` : null;
+  const identityType = req.body.identity_type || 'KTP';
+  const identityNumber = req.body.identity_number || '';
+  
   const playbox_id = parseInt(req.body.playbox_id);
   if (isNaN(playbox_id)) {
     return res.status(400).json({ message: 'Playbox ID tidak valid' });
@@ -169,19 +176,20 @@ exports.createReservation = async (req, res) => {
   
   try {
     const { 
-  customer_name,
-  customer_phone,
-  customer_email,
-  delivery_address,
-  start_time,
-  duration_hours,
-  payment_method,
-  notes,
-  pricing_id,
-  total_amount,
-  deposit_amount
-} = req.body;
+      customer_name,
+      customer_phone,
+      customer_email,
+      delivery_address,
+      start_time,
+      duration_hours,
+      payment_method,
+      notes,
+      pricing_id,
+      total_amount,
+    } = req.body;
+
     const pickup_at_studio = req.body.pickup_at_studio === 'true'; // konversi dari string ke boolean
+    
     // Validasi playbox exists and is available
     const playbox = await Playbox.findByPk(playbox_id, { transaction });
     if (!playbox) {
@@ -192,6 +200,12 @@ exports.createReservation = async (req, res) => {
     if (playbox.status !== 'Available') {
       await transaction.rollback();
       return res.status(400).json({ message: 'Playbox sedang tidak tersedia' });
+    }
+    
+    // Validasi file identitas
+    if (!identityUrl) {
+      await transaction.rollback();
+      return res.status(400).json({ message: 'File identitas wajib diupload' });
     }
     
     // Validasi pricing (jika pricing_id disediakan)
@@ -262,9 +276,6 @@ exports.createReservation = async (req, res) => {
       }
     }
     
-    // Default deposit amount if not provided
-    const finalDepositAmount = deposit_amount || (pricing ? pricing.deposit_amount : 0);
-    
     // Generate unique booking code
     const booking_code = generateBookingCode();
     
@@ -284,13 +295,25 @@ exports.createReservation = async (req, res) => {
       payment_status: 'Pending',
       notes,
       pricing_id: pricing ? pricing.price_id : null,
-      deposit_amount: finalDepositAmount,
+      // Tidak menggunakan deposit lagi
+      deposit_amount: 0, 
       created_at: new Date(),
       pickup_at_studio,
       payment_proof_url: proofUrl,
       payment_proof_type: proofType
     }, { transaction });
     
+    const expiryDate = new Date(reservationEnd);
+expiryDate.setDate(expiryDate.getDate() + 1);
+
+await CustomerIdentity.create({
+  reservation_id: reservation.reservation_id,
+  identity_type: identityType,
+  identity_number: identityNumber,
+  identity_file_url: identityUrl,
+  expiry_date: expiryDate,
+  created_at: new Date()
+}, { transaction });
     
     // Create notification for staff
     await Notification.create({
@@ -315,6 +338,31 @@ exports.createReservation = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Error creating reservation:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Tambahkan fungsi baru untuk mendapatkan identitas pelanggan
+exports.getCustomerIdentityByReservationId = async (req, res) => {
+  try {
+    const { reservation_id } = req.params;
+    
+    // Cek apakah user adalah admin atau owner
+    if (!req.userData || !['Admin', 'Owner'].includes(req.userData.role)) {
+      return res.status(403).json({ message: 'Unauthorized access to customer identity' });
+    }
+    
+    const identity = await CustomerIdentity.findOne({
+      where: { reservation_id }
+    });
+    
+    if (!identity) {
+      return res.status(404).json({ message: 'Data identitas tidak ditemukan' });
+    }
+    
+    res.json(identity);
+  } catch (error) {
+    console.error('Error fetching customer identity:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };
@@ -667,6 +715,50 @@ exports.updateReservationStatus = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error('Error updating reservation status:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+exports.getAllReservationsWithIdentity = async (req, res) => {
+  try {
+    const { status, startDate, endDate } = req.query;
+    
+    let whereClause = {};
+    
+    if (status) {
+      whereClause.status = status;
+    }
+    
+    if (startDate && endDate) {
+      whereClause.start_time = {
+        [Op.between]: [new Date(startDate), new Date(endDate)]
+      };
+    } else if (startDate) {
+      whereClause.start_time = {
+        [Op.gte]: new Date(startDate)
+      };
+    } else if (endDate) {
+      whereClause.start_time = {
+        [Op.lte]: new Date(endDate)
+      };
+    }
+    
+    const reservations = await PlayboxReservation.findAll({
+      where: whereClause,
+      attributes: { 
+        exclude: ['pricing_id'] 
+      },
+      include: [
+        { model: Playbox },
+        { model: Staff, attributes: ['staff_id', 'name'] },
+        { model: CustomerIdentity } // Tambahkan relasi ke CustomerIdentity
+      ],
+      order: [['start_time', 'ASC']]
+    });
+    
+    res.json(reservations);
+  } catch (error) {
+    console.error('Error fetching reservations with identity:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

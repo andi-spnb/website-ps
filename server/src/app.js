@@ -15,7 +15,7 @@ const staffRoutes = require('./routes/staffRoutes');
 const playboxRoutes = require('./routes/playboxRoutes');
 const pricingRoutes = require('./routes/pricingRoutes');
 const playboxPricingRoutes = require('./routes/playboxPricingRoutes');
-
+const { scheduleFileCleanup } = require('./services/fileCleanupService');
 // Buat instance Express
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -65,9 +65,15 @@ const syncDatabase = async () => {
     await sequelize.sync({ alter: false });
     console.log('✅ Database synchronized successfully');
 
-    // Sinkronisasi khusus PlayboxPricing (boleh dihapus kalau sudah include)
+    // Sinkronisasi khusus PlayboxPricing & CustomerIdentity
     await PlayboxPricing.sync({ alter: true });
     console.log('✅ PlayboxPricing table synchronized successfully');
+    
+    await CustomerIdentity.sync({ alter: true });
+    console.log('✅ CustomerIdentity table synchronized successfully');
+    
+    // Jadwalkan pembersihan file otomatis
+    scheduleFileCleanup();
   } catch (error) {
     console.error('❌ Error synchronizing database:', error);
   }
