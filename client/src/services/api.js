@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // Set your backend URL here - pastikan ini sesuai dengan port server Anda
-const BASE_URL = 'http://localhost:5000/api';
+const BASE_URL = 'http://absenta.my.id/api';
 
 const api = axios.create({
   baseURL: BASE_URL,

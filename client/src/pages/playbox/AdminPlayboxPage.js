@@ -7,10 +7,8 @@ import {
   AlertCircle, 
   Search, 
   X, 
-  Filter,
   CheckCircle,
   AlignLeft,
-  MapPin,
   Clock
 } from 'lucide-react';
 import api from '../../services/api';

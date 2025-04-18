@@ -12,6 +12,13 @@ const DURATION_OPTIONS = [
   { hours: 'custom', label: 'Kustom...' }
 ];
 
+// Default pricing fallbacks when API fails
+const DEFAULT_PRICING = {
+  PS3: { amount_per_hour: 10000, name: 'Default PS3' },
+  PS4: { amount_per_hour: 15000, name: 'Default PS4' },
+  PS5: { amount_per_hour: 20000, name: 'Default PS5' }
+};
+
 const RentalForm = ({ selectedDevice, onBack }) => {
   const { addRental, member } = useCart();
   const [selectedDuration, setSelectedDuration] = useState(DURATION_OPTIONS[0]);
@@ -29,30 +36,63 @@ const RentalForm = ({ selectedDevice, onBack }) => {
     const fetchPricing = async () => {
       try {
         setLoading(true);
-        // Fetch pricing data from API
-        const response = await api.get(`/pricing/device-type/${selectedDevice.device_type}`);
-        setPricing(response.data);
+        console.log(`Fetching pricing for ${selectedDevice.device_type}...`);
         
-        // Check if there are package options available for this device type
-        try {
-          // This would fetch all pricing options for this device type to check for packages
-          const allPricingResponse = await api.get('/pricing');
-          const filteredPackages = allPricingResponse.data.filter(item => 
-            item.device_type === selectedDevice.device_type && 
-            item.package_amount && 
-            item.package_hours
+        // Gunakan endpoint public untuk mendapatkan data harga
+        const response = await api.get(`/pricing/public/device-type/${selectedDevice.device_type}`);
+        console.log('API Response:', response);
+        
+        if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+          console.log(`Retrieved ${response.data.length} pricing options for ${selectedDevice.device_type}`);
+          
+          // Gunakan harga pertama sebagai default
+          setPricing(response.data[0]);
+          
+          // Filter untuk mencari opsi paket
+          const packageOptions = response.data.filter(item => 
+            item.package_amount && item.package_hours
           );
           
-          setAvailablePackages(filteredPackages);
-        } catch (err) {
-          console.error('Error fetching packages:', err);
-          setAvailablePackages([]);
+          setAvailablePackages(packageOptions);
+          setError(null);
+        } else {
+          console.log('No pricing data in response:', response.data);
+          throw new Error(`No pricing data found for ${selectedDevice.device_type}`);
         }
-        
-        setError(null);
       } catch (err) {
         console.error('Error fetching pricing:', err);
-        setError('Gagal memuat data harga. Menggunakan harga default.');
+        
+        // Jika gagal dengan endpoint public, coba endpoint alternatif
+        try {
+          console.log('Trying alternative endpoint...');
+          const allResponse = await api.get('/pricing/public');
+          
+          if (allResponse.data && Array.isArray(allResponse.data)) {
+            // Filter untuk menemukan harga untuk tipe device ini
+            const filteredPricing = allResponse.data.filter(item => 
+              item.device_type === selectedDevice.device_type
+            );
+            
+            if (filteredPricing.length > 0) {
+              console.log(`Found ${filteredPricing.length} pricing options from all pricing data`);
+              setPricing(filteredPricing[0]);
+              
+              // Filter untuk mencari opsi paket
+              const packageOptions = filteredPricing.filter(item => 
+                item.package_amount && item.package_hours
+              );
+              
+              setAvailablePackages(packageOptions);
+              setError(null);
+              return; // Keluar dari fungsi jika berhasil
+            }
+          }
+        } catch (altErr) {
+          console.error('Alternative endpoint also failed:', altErr);
+        }
+        
+        // Jika semua endpoint gagal, gunakan data default
+        setError(`Gagal memuat data harga untuk ${selectedDevice.device_type}. Menggunakan harga default.`);
         
         // Use default pricing as fallback
         const defaultPricing = {
@@ -60,10 +100,27 @@ const RentalForm = ({ selectedDevice, onBack }) => {
           amount_per_hour: 
             selectedDevice.device_type === 'PS5' ? 20000 :
             selectedDevice.device_type === 'PS4' ? 15000 : 10000,
-          name: `Default ${selectedDevice.device_type}`
+          name: `Default ${selectedDevice.device_type}`,
+          time_condition: 'Any'
         };
         
         setPricing(defaultPricing);
+        
+        // Mock packages for demo for PS4 only
+        if (selectedDevice.device_type === 'PS4') {
+          setAvailablePackages([
+            {
+              price_id: 'default1',
+              device_type: selectedDevice.device_type,
+              name: 'Paket 3 Jam',
+              package_amount: 40000,
+              package_hours: 3,
+              time_condition: 'Any'
+            }
+          ]);
+        } else {
+          setAvailablePackages([]);
+        }
       } finally {
         setLoading(false);
       }
@@ -271,7 +328,7 @@ const RentalForm = ({ selectedDevice, onBack }) => {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-lg font-bold">Rp{pricing.amount_per_hour.toLocaleString()}</div>
+                <div className="text-lg font-bold">Rp{pricing?.amount_per_hour?.toLocaleString() || '0'}</div>
                 <div className="text-xs text-gray-400">per jam</div>
               </div>
             </div>
@@ -396,7 +453,7 @@ const RentalForm = ({ selectedDevice, onBack }) => {
           
           <div className="flex justify-between mb-2">
             <span className="text-gray-400">Harga per jam</span>
-            <span>Rp{pricing ? pricing.amount_per_hour.toLocaleString() : 0}</span>
+            <span>Rp{(pricing?.amount_per_hour || 0).toLocaleString()}</span>
           </div>
           
           {selectedPackage && (
@@ -410,7 +467,7 @@ const RentalForm = ({ selectedDevice, onBack }) => {
             <span>Total</span>
             <span>Rp{calculatePrice(
               selectedDuration.hours, 
-              pricing ? pricing.amount_per_hour : 0
+              pricing?.amount_per_hour || 0
             ).toLocaleString()}</span>
           </div>
         </div>

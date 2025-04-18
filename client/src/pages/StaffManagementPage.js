@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Edit, Trash, AlertCircle, Search, X, Info, Coffee } from 'lucide-react';
+import { Users, UserPlus, Edit, Trash, AlertCircle, Search, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';

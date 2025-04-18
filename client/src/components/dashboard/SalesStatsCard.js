@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { DollarSign, TrendingUp, RefreshCw } from 'lucide-react';
 import api from '../../services/api';
-import { toast } from 'react-toastify';
 
 const SalesStatsCard = () => {
   const [stats, setStats] = useState({

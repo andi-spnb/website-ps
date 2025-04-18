@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import api from '../../services/api'; // Perbaikan path import
 import { toast } from 'react-toastify';
 
@@ -12,7 +11,6 @@ const Register = ({ onToggleForm }) => {
     role: 'Cashier' // Default role
   });
   const [isLoading, setIsLoading] = useState(false);
-  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -44,14 +42,6 @@ const Register = ({ onToggleForm }) => {
     try {
       setIsLoading(true);
       
-      // Register endpoint (sesuaikan dengan API Anda)
-      // Biasanya diakses oleh Admin, tapi untuk public register, kita bisa buat endpoint khusus
-      const response = await api.post('/auth/register-public', {
-        name: formData.name,
-        username: formData.username,
-        password: formData.password,
-        role: formData.role
-      });
       
       toast.success('Pendaftaran berhasil! Silakan login');
       onToggleForm(); // Kembali ke form login

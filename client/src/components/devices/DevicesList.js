@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Monitor, Edit, Trash, Plus, AlertCircle, Check, X } from 'lucide-react';
+import { Monitor, Edit, Trash, Plus, AlertCircle, X } from 'lucide-react';
 import api from '../../services/api';
 import { toast } from 'react-toastify';
 

@@ -227,7 +227,6 @@ exports.createReservation = async (req, res) => {
     const reservationStart = new Date(start_time);
     const reservationEnd = new Date(reservationStart.getTime() + (duration_hours * 60 * 60 * 1000));
 
-    // Check if there's an overlap with existing reservations
     const overlappingReservation = await PlayboxReservation.findOne({
       where: {
         playbox_id,
@@ -247,12 +246,21 @@ exports.createReservation = async (req, res) => {
       },
       transaction
     });
-
+    
+    // Tambahkan validasi khusus untuk paket tetap
     if (overlappingReservation) {
-      await transaction.rollback();
-      return res.status(400).json({ 
-        message: 'Waktu yang dipilih sudah dipesan oleh pelanggan lain' 
-      });
+      // Cek jika ini adalah paket tetap, berikan pesan error yang lebih spesifik
+      if (pricing && pricing.is_fixed_package) {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          message: 'Paket tetap ini sudah dipesan pada waktu yang sama. Silakan pilih waktu atau Playbox lain.' 
+        });
+      } else {
+        await transaction.rollback();
+        return res.status(400).json({ 
+          message: 'Waktu yang dipilih sudah dipesan oleh pelanggan lain' 
+        });
+      }
     }
     
     // Calculate total amount (if not provided, use pricing data)

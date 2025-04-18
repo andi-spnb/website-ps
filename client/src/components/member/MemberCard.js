@@ -16,12 +16,6 @@ const MemberCard = ({ member }) => {
     pageStyle: '@page { size: 88mm 54mm; margin: 0mm; }' // Mengatur ukuran halaman cetak
   });
 
-  // Generate QR code when member changes
-  useEffect(() => {
-    if (member) {
-      generateQRCode();
-    }
-  }, [member]);
 
   // Function to generate QR code
   const generateQRCode = () => {

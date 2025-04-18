@@ -1,5 +1,4 @@
 import React from 'react';
-import { Calendar, Mail, Phone, Star } from 'lucide-react';
 
 // Komponen khusus yang optimized untuk pencetakan
 const PrintableMemberCard = React.forwardRef(({ member, qrCodeUrl }, ref) => {

@@ -1,6 +1,6 @@
 // client/src/components/alerts/StockAlertSystem.js
 import React, { useState, useEffect } from 'react';
-import { Bell, AlertTriangle, CheckCircle, X, Info, Filter, RefreshCw, Eye, EyeOff, Download } from 'lucide-react';
+import { Bell, AlertTriangle, CheckCircle, Info, RefreshCw, Eye, EyeOff, Download } from 'lucide-react';
 import { toast } from 'react-toastify';
 import api from '../../services/api';
 import { exportToExcel } from '../../utils/exportUtils';
@@ -30,10 +30,6 @@ const StockAlertSystem = () => {
     startDate: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   };
-
-  useEffect(() => {
-    fetchStockAlerts();
-  }, []);
 
   const fetchStockAlerts = async () => {
     try {

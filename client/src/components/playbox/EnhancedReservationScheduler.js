@@ -11,8 +11,7 @@ const EnhancedReservationScheduler = ({
   selectedDuration,
   isFixedTimePackage = false, 
   fixedStartTime = null,
-  fixedEndTime = null,
-  fixedPackageName = "" 
+  fixedEndTime = null
 }) => {
   const [calendarView, setCalendarView] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -23,10 +22,8 @@ const EnhancedReservationScheduler = ({
   const durationOptions = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 24];
   
   // Jam operasional
-  const OPEN_HOUR = 8; // Buka jam 8 pagi
   const CLOSE_HOUR = 0; // Tutup jam 12 malam (0)
   const MIN_DURATION = 3; // Durasi minimum 3 jam
-  const NO_RETURN_START = 0; // Tidak boleh kembali mulai jam 00:00
   const NO_RETURN_END = 7; // Tidak boleh kembali sampai jam 06:59 (sebelum jam 07:00)
   
   // Menghitung durasi valid setiap kali jam mulai berubah
@@ -403,49 +400,58 @@ const EnhancedReservationScheduler = ({
             </div>
           </div>
           <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2 mb-4">
-            {availableTimeSlots.map(slot => {
-              const hour = slot.hour;
-              const timeString = formatTime(hour);
-              
-              // Tentukan apakah slot ini disabled
-              const isDisabled = !slot.available;
-              
-              // Style conditionals
-              let bgGradient = "from-gray-800 to-gray-700"; // Default
-              
-              if (hour >= 8 && hour < 12) {
-                bgGradient = "from-blue-900 to-indigo-900"; // Morning
-              } else if (hour >= 12 && hour < 17) {
-                bgGradient = "from-indigo-900 to-purple-900"; // Afternoon
-              } else if (hour >= 17 && hour < 20) {
-                bgGradient = "from-purple-900 to-pink-900"; // Evening
-              } else if (hour >= 20) {
-                bgGradient = "from-pink-900 to-red-900"; // Night
-              }
-              
-              // Selected state
-              if (selectedTime === timeString) {
-                bgGradient = "from-blue-600 to-blue-500";
-              }
-              
-              return (
-                <button
-                  key={slot.hour}
-                  type="button"
-                  onClick={() => !isDisabled && handleTimeSlotSelect(timeString)}
-                  className={`py-3 text-center rounded-lg border ${
-                    isDisabled
-                    ? 'bg-gray-800 border-gray-700 opacity-50 text-gray-500 cursor-not-allowed' 
-                    : selectedTime === timeString
-                        ? 'bg-gradient-to-br border-blue-400 text-white font-medium shadow-lg transform scale-105'
-                        : `bg-gradient-to-br ${bgGradient} border-gray-600 hover:border-blue-500`
-                  }`}
-                  disabled={isDisabled}
-                >
-                  <div className="text-lg">{timeString}</div>
-                </button>
-              );
-            })}
+
+          {availableTimeSlots.map(slot => {
+  const hour = slot.hour;
+  const timeString = formatTime(hour);
+  
+  // Tentukan apakah slot ini disabled
+  const isDisabled = !slot.available;
+  
+  // Tambahkan penanda visual untuk paket tetap
+  const isFixedPackageSlot = slot.isFixedPackage;
+  
+  // Style conditionals dengan tambahan untuk paket tetap
+  let bgGradient = "from-gray-800 to-gray-700"; // Default
+  
+  if (isFixedPackageSlot) {
+    bgGradient = "from-purple-900 to-pink-900"; // Warna khusus untuk slot paket tetap
+  } else if (hour >= 8 && hour < 12) {
+    bgGradient = "from-blue-900 to-indigo-900"; // Morning
+  } else if (hour >= 12 && hour < 17) {
+    bgGradient = "from-indigo-900 to-purple-900"; // Afternoon
+  } else if (hour >= 17 && hour < 20) {
+    bgGradient = "from-purple-900 to-pink-900"; // Evening
+  } else if (hour >= 20) {
+    bgGradient = "from-pink-900 to-red-900"; // Night
+  }
+  
+  // Selected state
+  if (selectedTime === timeString) {
+    bgGradient = "from-blue-600 to-blue-500";
+  }
+  
+  return (
+    <button
+      key={slot.hour}
+      type="button"
+      onClick={() => !isDisabled && handleTimeSlotSelect(timeString)}
+      className={`py-3 text-center rounded-lg border ${
+        isDisabled
+        ? `bg-${isFixedPackageSlot ? 'purple' : 'gray'}-800 border-${isFixedPackageSlot ? 'purple' : 'gray'}-700 opacity-50 text-${isFixedPackageSlot ? 'purple' : 'gray'}-500 cursor-not-allowed` 
+        : selectedTime === timeString
+            ? 'bg-gradient-to-br border-blue-400 text-white font-medium shadow-lg transform scale-105'
+            : `bg-gradient-to-br ${bgGradient} border-gray-600 hover:border-blue-500`
+      }`}
+      disabled={isDisabled}
+    >
+      <div className="text-lg">{timeString}</div>
+      {isFixedPackageSlot && isDisabled && (
+        <div className="text-xs text-purple-400">Paket Tetap</div>
+      )}
+    </button>
+  );
+})}
           </div>
         </div>
       )}
