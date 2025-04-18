@@ -5,7 +5,7 @@ import api from '../services/api';
 import { toast } from 'react-toastify';
 
 const ProfilePage = () => {
-  const { currentUser, updateProfile } = useAuth();
+  const { currentUser } = useAuth();
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',

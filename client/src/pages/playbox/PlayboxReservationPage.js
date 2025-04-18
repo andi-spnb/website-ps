@@ -4,8 +4,6 @@ import EnhancedReservationScheduler from '../../components/playbox/EnhancedReser
 import PricingPackageSelector from '../../components/playbox/PricingPackageSelector';
 import { 
   Monitor, 
-  Calendar, 
-  Clock, 
   MapPin, 
   ChevronRight, 
   User, 
@@ -15,8 +13,6 @@ import {
   CheckCircle,
   AlertCircle,
   ArrowLeft,
-  Package,
-  Tag,
   Info
 } from 'lucide-react';
 import api from '../../services/api';
@@ -24,7 +20,6 @@ import { toast } from 'react-toastify';
 
 const PlayboxReservationPage = () => {
   const location = useLocation();
-  const navigate = useNavigate();
   const searchParams = new URLSearchParams(location.search);
   const playboxId = searchParams.get('id');
   
@@ -377,7 +372,18 @@ const PlayboxReservationPage = () => {
   
   const handleSubmit = async (e) => {
     e.preventDefault();
-  
+    if (selectedPricing && selectedPricing.is_fixed_package) {
+      // Periksa apakah slot waktu tersedia untuk paket ini
+      const selectedHour = parseInt(formData.start_time.split(':')[0]);
+      const isSlotAvailable = availableTimeSlots.some(
+        slot => slot.hour === selectedHour && slot.available
+      );
+      
+      if (!isSlotAvailable) {
+        setError('Paket tetap ini tidak tersedia pada jadwal yang dipilih. Silakan pilih waktu lain atau Playbox lain.');
+        return;
+      }
+    }  
     // Validasi apakah slot waktu yang dipilih masih tersedia
     if (formData.start_time && !isFixedPackage) {
       const selectedHour = parseInt(formData.start_time.split(':')[0]);

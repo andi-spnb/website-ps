@@ -17,5 +17,6 @@ router.post('/', auth, roleCheck(['Admin', 'Owner']), pricingController.createPr
 router.put('/:id', auth, roleCheck(['Admin', 'Owner']), pricingController.updatePricing);
 router.delete('/:id', auth, roleCheck(['Admin', 'Owner']), pricingController.deletePricing);
 router.patch('/:id/toggle-status', auth, roleCheck(['Admin', 'Owner']), pricingController.toggleActiveStatus);
+router.get('/device-type/:type', auth, pricingController.getPricingByDeviceType);
 
 module.exports = router;

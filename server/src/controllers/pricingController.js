@@ -153,6 +153,24 @@ exports.updatePricing = async (req, res) => {
   }
 };
 
+exports.getPricingByDeviceType = async (req, res) => {
+  try {
+    const { type } = req.params;
+    console.log(`Fetching pricing for device type: ${type}`);
+    
+    const pricing = await Pricing.findAll({
+      where: { device_type: type },
+      order: [['name', 'ASC']]
+    });
+    
+    console.log(`Retrieved ${pricing.length} pricing items for ${type}`);
+    res.json(pricing);
+  } catch (error) {
+    console.error('Error fetching pricing by device type:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
 // Delete data harga PlayStation
 exports.deletePricing = async (req, res) => {
   const transaction = await sequelize.transaction();

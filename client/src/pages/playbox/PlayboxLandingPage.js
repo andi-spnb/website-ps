@@ -2,28 +2,23 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   Monitor, 
-  Calendar, 
   Clock, 
   MapPin, 
   ChevronRight, 
   Star, 
-  CheckCircle, 
   Users,
   ArrowRight,
-  X,
   AlertCircle,
   Search
 } from 'lucide-react';
 import api from '../../services/api';
 
-// Fungsi untuk mengecek apakah suatu tanggal adalah hari ini
 const isToday = (date) => {
   const today = new Date();
   return date.getDate() === today.getDate() &&
     date.getMonth() === today.getMonth() &&
     date.getFullYear() === today.getFullYear();
 };
-
 // Komponen PlayboxCard yang akan menampilkan status ketersediaan berdasarkan slot waktu
 const PlayboxCard = ({ playbox }) => {
   const [availabilityStatus, setAvailabilityStatus] = useState({
@@ -189,7 +184,14 @@ const PlayboxLandingPage = () => {
   const [featuredPlaybox, setFeaturedPlaybox] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
+  const [showTrackingForm, setShowTrackingForm] = useState(false);
+  const [trackingCode, setTrackingCode] = useState('');
+  const handleTrackingSubmit = (e) => {
+    e.preventDefault();
+    if (trackingCode.trim()) {
+      window.location.href = `/playbox/tracking/${trackingCode}`;
+    }
+  };
   useEffect(() => {
     const fetchPlayboxes = async () => {
       try {
@@ -263,7 +265,7 @@ const PlayboxLandingPage = () => {
               PLAYBOX KENZIE GAMING
             </h1>
             <p className="text-xl text-gray-200 mb-8">
-              Nikmati pengalaman bermain PlayStation 4 kapan saja dan di mana saja dengan Playbox, PS4 portabel lengkap dengan TV dan controller. TINGAL CULUK..
+              Nikmati pengalaman bermain PlayStation 4 kapan saja dan di mana saja dengan Playbox, PS4 portabel lengkap dengan TV dan controller.
             </p>
             <div className="flex flex-col sm:flex-row gap-4">
               <Link 
@@ -523,40 +525,75 @@ const PlayboxLandingPage = () => {
         </div>
       </div>
       
-      {/* CTA Section */}
-      <div className="container mx-auto px-4">
-          <div className="bg-gradient-to-r from-blue-900 to-blue-600 rounded-lg p-8 md:p-12 text-center">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">Siap Untuk Memulai Petualangan Gaming?</h2>
-            <p className="text-gray-200 mb-8 max-w-2xl mx-auto">
-              Pesan Playbox sekarang dan nikmati pengalaman bermain PlayStation 4 di mana saja!
-            </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Link 
-                to="/playbox/reservation" 
-                className="bg-white text-blue-600 hover:bg-gray-100 px-6 py-3 rounded-lg font-medium flex items-center justify-center"
-              >
-                Pesan Sekarang
-                <ArrowRight className="ml-2" size={18} />
-              </Link>
-              <Link 
-                to="/playbox/tracking" 
-                className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
-              >
-                Cek Reservasi
-                <Search className="ml-2" size={18} />
-              </Link>
-              <a 
-                href="https://wa.me/62895386763040?text=Halo,%20saya%20ingin%20bertanya%20tentang%20Playbox" 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
-              >
-                Hubungi via WhatsApp
-              </a>
-            </div>
-          </div>
+{/* CTA Section */}
+<div className="container mx-auto px-4">
+  <div className="bg-gradient-to-r from-blue-900 to-blue-600 rounded-lg p-8 md:p-12 text-center">
+    <h2 className="text-2xl md:text-3xl font-bold mb-4">Siap Untuk Memulai Petualangan Gaming?</h2>
+    <p className="text-gray-200 mb-8 max-w-2xl mx-auto">
+      Pesan Playbox sekarang dan nikmati pengalaman bermain PlayStation 4 di mana saja!
+    </p>
+    
+    {showTrackingForm ? (
+      <form onSubmit={handleTrackingSubmit} className="max-w-md mx-auto bg-gray-800 p-6 rounded-lg">
+        <div className="mb-4">
+          <label htmlFor="trackingCode" className="block text-white text-left mb-2">
+            Masukkan Kode Booking:
+          </label>
+          <input
+            type="text"
+            id="trackingCode"
+            value={trackingCode}
+            onChange={(e) => setTrackingCode(e.target.value)}
+            className="w-full px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="Contoh: PBX-1234"
+            required
+          />
         </div>
-    </div>
+        <div className="flex gap-4">
+          <button
+            type="submit"
+            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium"
+          >
+            Cek Reservasi
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTrackingForm(false)}
+            className="flex-1 bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg font-medium"
+          >
+            Batal
+          </button>
+        </div>
+      </form>
+    ) : (
+      <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <Link 
+          to="/playbox/reservation" 
+          className="bg-white text-blue-600 hover:bg-gray-100 px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+        >
+          Pesan Sekarang
+          <ArrowRight className="ml-2" size={18} />
+        </Link>
+        <button
+          onClick={() => setShowTrackingForm(true)}
+          className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+        >
+          Cek Reservasi
+          <Search className="ml-2" size={18} />
+        </button>
+        <a 
+          href="https://wa.me/62895386763040?text=Halo,%20saya%20ingin%20bertanya%20tentang%20Playbox" 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-medium flex items-center justify-center"
+        >
+          Hubungi via WhatsApp
+        </a>
+      </div>
+    )}
+  </div>
+</div>
+</div>
   );
 };
 

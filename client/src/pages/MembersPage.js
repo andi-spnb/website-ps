@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState} from 'react';
 import MembersList from '../components/member/MembersList';
 import MemberCard from '../components/member/MemberCard';
 import api from '../services/api';
